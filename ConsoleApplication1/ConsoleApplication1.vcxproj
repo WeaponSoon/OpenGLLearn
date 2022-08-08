@@ -160,6 +160,7 @@
     <ClInclude Include="shader_m2.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ClassDiagram.cd" />
     <None Include="simple_shader.fs" />
     <None Include="simple_shader.vs" />
   </ItemGroup>

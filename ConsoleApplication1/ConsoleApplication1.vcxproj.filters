@@ -40,5 +40,6 @@
     <None Include="simple_shader.vs">
       <Filter>资源文件</Filter>
     </None>
+    <None Include="ClassDiagram.cd" />
   </ItemGroup>
 </Project>

@@ -1053,7 +1053,7 @@ public:
     FShaderRef Shader;
 
     
-    FRenderBatch GenerateRenderBatch() const
+    virtual FRenderBatch GenerateRenderBatch() const
     {
         FRenderBatch ret;
         ret.model = GetWorldTransform();
