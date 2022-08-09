@@ -18,7 +18,7 @@ void processInput(GLFWwindow* window);
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
-FCameraRef cameraComp;
+std::weak_ptr<FCameraComponent> cameraComp;
 
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
@@ -171,12 +171,25 @@ int main()
     FShaderRef ourShader = std::make_shared<FShader>("simple_shader.vs", "simple_shader.fs");
 
     //加载俩贴图
-    FTextureRef tex[2];
+    FTextureRef tex[3];
     tex[0] = std::make_shared<FTexture>(("./container.jpg"), ETextureWarpMethod::TWM_Repeat, ETextureFilterMethod::TFM_TriLinear);
     tex[1] = std::make_shared<FTexture>(("./awesomeface.png"), ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
 
     //给场景添加一个相机
     cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
+
+    //创建一个FrameBuffer
+    FFrameBufferRef frameBuffer = std::make_shared<FFrameBuffer>(256, 256, 1, EFrameBufferColorFormat::FCF_RGBA);
+    frameBuffer->clearColor = glm::vec4(0.2, 0.5, 0.6, 1.0);//随便设置个清屏颜色
+
+    //创建一个渲染到图片的相机
+    FCameraRef sceneCapture = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
+    //渲染到刚才给的framebuffer
+    sceneCapture->frameBufferRef = frameBuffer;
+
+    //方便起见将刚才的framebuffer的color贴图也放到这个数组里
+    tex[2] = frameBuffer->Color[0];
+
 
     //创建一个渲染组件，作为场景的一个地面
     auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
@@ -194,7 +207,7 @@ int main()
     cameraFollower->Shader->SetTexture("texture1", tex[0]);
     cameraFollower->Shader->SetTexture("texture2", tex[1]);
     cameraFollower->Shader->setVec4("uniColor", 1, 1, 1, 1);
-    cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
+    cameraFollower->AttachTo(cameraComp.lock(), EAttachRule::AR_KeepRelative);
     cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));
 
 
@@ -223,8 +236,8 @@ int main()
 
         //给每个渲染组件的shader设置不同的参数，方便看效果
         primitive->Shader->setVec4("uniColor", i / 10.0f, 1.0f - i / 10.0f, i / 10.0f, 1);
-        primitive->Shader->SetTexture("texture1", tex[i % 2]);
-        primitive->Shader->SetTexture("texture2", tex[!(i % 2)]);
+        primitive->Shader->SetTexture("texture1", tex[i % 3]);
+        primitive->Shader->SetTexture("texture2", tex[((i + 1) % 3)]);
 
     }
 
@@ -245,8 +258,7 @@ int main()
 
         // render
         // ------
-
-        cameraComp->Draw();
+        FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -263,17 +275,17 @@ void processInput(GLFWwindow* window)
         glfwSetWindowShouldClose(window, true);
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraComp->ProcessKeyboard(ECameraMovement::FORWARD, deltaTime);
+        cameraComp.lock()->ProcessKeyboard(ECameraMovement::FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraComp->ProcessKeyboard(ECameraMovement::BACKWARD, deltaTime);
+        cameraComp.lock()->ProcessKeyboard(ECameraMovement::BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraComp->ProcessKeyboard(ECameraMovement::LEFT, deltaTime);
+        cameraComp.lock()->ProcessKeyboard(ECameraMovement::LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraComp->ProcessKeyboard(ECameraMovement::RIGHT, deltaTime);
+        cameraComp.lock()->ProcessKeyboard(ECameraMovement::RIGHT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-        cameraComp->ProcessKeyboard(ECameraMovement::Up, deltaTime);
+        cameraComp.lock()->ProcessKeyboard(ECameraMovement::Up, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-        cameraComp->ProcessKeyboard(ECameraMovement::Down, deltaTime);
+        cameraComp.lock()->ProcessKeyboard(ECameraMovement::Down, deltaTime);
 }
 
 
@@ -303,11 +315,11 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
     lastX = xpos;
     lastY = ypos;
 
-    cameraComp->ProcessMouseMovement(xoffset, yoffset);
+    cameraComp.lock()->ProcessMouseMovement(xoffset, yoffset);
 }
 
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    cameraComp->ProcessMouseScroll(static_cast<float>(yoffset));
+    cameraComp.lock()->ProcessMouseScroll(static_cast<float>(yoffset));
 }

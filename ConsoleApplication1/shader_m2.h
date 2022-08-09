@@ -10,6 +10,7 @@
 #include <sstream>
 #include <iostream>
 #include <map> 
+#include <queue>
 #include <set> 
 #include <stb_image.h>
 #include <vector>
@@ -309,7 +310,34 @@ class FCameraComponent : public FSceneComponent
 {
 public:
 
+    class FDeferredDrawer
+    {
+        friend class FCameraComponent;
+        std::queue<std::function<void()>> preDeferredCommands;
+        std::queue<std::function<void()>> deferredCommands;
+        std::set<const FCameraComponent*> registeredCamera; 
+    public:
+        void Execute()
+        {
+            while (!preDeferredCommands.empty())
+            {
+                preDeferredCommands.front()();
+                preDeferredCommands.pop();
+            }
+            while (!deferredCommands.empty())
+            {
+                deferredCommands.front()();
+                deferredCommands.pop();
+            }
+            registeredCamera.clear();
+        }
+    };
+
+    static FDeferredDrawer& GetDeferredCmds();
+
     FFrameBufferRef frameBufferRef;
+
+    bool bDrawEveryFrame = true;
 
     float nearPlane = .1f;
     float farPlane = 100.f;
@@ -325,7 +353,22 @@ public:
     // constructor with vectors
     FCameraComponent(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), float yaw = YAW, float pitch = PITCH);
    
-    void Draw() const;
+    ~FCameraComponent() override
+    {
+        GetDeferredCmds().registeredCamera.erase(this);
+    }
+
+    virtual void FinalTick(float deltaSecond) override
+    {
+	    if(bDrawEveryFrame)
+	    {
+            DrawDeferred();
+	    }
+    }
+
+    void DrawDeferred() const;
+
+	void Draw() const;
 
 
     // returns the view matrix calculated using Euler Angles and the LookAt Matrix
@@ -451,7 +494,7 @@ public:
 
     ETexturePixelFormat TextureFormat;
 
-    FTexture(int width, int height, ETexturePixelFormat inTextureFormat) : ID(GL_NONE)
+    FTexture(int width, int height, ETexturePixelFormat inTextureFormat, bool bGenMipmap = false) : ID(GL_NONE)
     {
         if(inTextureFormat == ETexturePixelFormat::TPF_Unknow)
         {
@@ -488,8 +531,13 @@ public:
 
         glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(inTextureFormat), width, height, 0, format, elementType, nullptr);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        if(bGenMipmap)
+        {
+            glGenerateMipmap(GL_TEXTURE_2D);
+        }
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, bGenMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, bGenMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
 
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -591,6 +639,8 @@ public:
 	FTextureRef Color[MaxSupportColorAttachment];
     FTextureRef Depth;
 
+    bool IsEmpty() const { return FBO == GL_NONE; }
+
     glm::vec4 clearColor;
 
     void Clear()
@@ -621,6 +671,7 @@ public:
         }
 
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
