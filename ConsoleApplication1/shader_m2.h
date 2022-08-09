@@ -6,6 +6,7 @@
 
 #include <string>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <iostream>
 #include <map> 
@@ -301,10 +302,15 @@ public:
     glm::mat4 project;
 };
 
+using FFrameBufferRef = std::shared_ptr<class FFrameBuffer>;
+
 // An abstract camera class that processes input and calculates the corresponding Euler Angles, Vectors and Matrices for use in OpenGL
 class FCameraComponent : public FSceneComponent
 {
 public:
+
+    FFrameBufferRef frameBufferRef;
+
     float nearPlane = .1f;
     float farPlane = 100.f;
     float aspectRatio = 1.33f;
@@ -317,13 +323,7 @@ public:
     float Zoom;
 
     // constructor with vectors
-    FCameraComponent(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), float yaw = YAW, float pitch = PITCH) :  MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
-    {
-        SetWorldLocation(position);
-        Yaw = yaw;
-        Pitch = pitch;
-        updateCameraVectors();
-    }
+    FCameraComponent(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), float yaw = YAW, float pitch = PITCH);
    
     void Draw() const;
 
@@ -435,13 +435,66 @@ enum class ETextureFilterMethod
     TFM_TriLinear = GL_LINEAR_MIPMAP_LINEAR,
 };
 
+enum class ETexturePixelFormat : int
+{
+    TPF_Unknow = GL_NONE,
+	TPF_RGB = GL_RGB,
+    TPF_RGBA = GL_RGBA,
+    TPF_RGBA16F = GL_RGBA16F,
+    TPF_D24S8 = GL_DEPTH24_STENCIL8,
+};
+
 class FTexture
 {
 public:
     unsigned int ID;
 
+    ETexturePixelFormat TextureFormat;
 
-    FTexture(const std::string& texturePath, ETextureWarpMethod warpMethod, ETextureFilterMethod filterMethod) : ID(GL_NONE)
+    FTexture(int width, int height, ETexturePixelFormat inTextureFormat) : ID(GL_NONE)
+    {
+        if(inTextureFormat == ETexturePixelFormat::TPF_Unknow)
+        {
+            return;
+        }
+
+        TextureFormat = inTextureFormat;
+
+        glGenTextures(1, &ID);
+        glBindTexture(GL_TEXTURE_2D, ID);
+
+        int format = GL_NONE;
+        int elementType = GL_NONE;
+        switch (inTextureFormat)
+        {
+        case ETexturePixelFormat::TPF_Unknow: break;
+        case ETexturePixelFormat::TPF_RGB: 
+            format = GL_RGB;
+            elementType = GL_UNSIGNED_BYTE;
+            break;
+        case ETexturePixelFormat::TPF_RGBA: 
+            format = GL_RGBA;
+            elementType = GL_UNSIGNED_BYTE;
+            break;
+        case ETexturePixelFormat::TPF_RGBA16F: 
+            format = GL_RGBA;
+            elementType = GL_FLOAT;
+            break;
+        case ETexturePixelFormat::TPF_D24S8: 
+            format = GL_DEPTH_STENCIL;
+            elementType = GL_UNSIGNED_INT_24_8;
+            break;
+        }
+
+        glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(inTextureFormat), width, height, 0, format, elementType, nullptr);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    FTexture(const std::string& texturePath, ETextureWarpMethod warpMethod, ETextureFilterMethod filterMethod) : ID(GL_NONE), TextureFormat(ETexturePixelFormat::TPF_Unknow)
     {
         int width, height, nrChannels;
         auto data = stbi_load(texturePath.c_str(), &width, &height, &nrChannels, 0);
@@ -452,9 +505,11 @@ public:
             {
             case 3:
                 format = GL_RGB;
+                TextureFormat = ETexturePixelFormat::TPF_RGB;
                 break;
             case 4:
                 format = GL_RGBA;
+                TextureFormat = ETexturePixelFormat::TPF_RGBA;
                 break;
             default:
                 format = GL_NONE;
@@ -505,6 +560,79 @@ public:
 };
 
 using FTextureRef = std::shared_ptr<FTexture>;
+
+enum class EFrameBufferColorFormat
+{
+	FCF_Unknow = (int)ETexturePixelFormat::TPF_Unknow,
+    FCF_RGB = (int)ETexturePixelFormat::TPF_RGB,
+    FCF_RGBA = (int)ETexturePixelFormat::TPF_RGBA,
+    FCF_RGBA16F = (int)ETexturePixelFormat::TPF_RGBA16F,
+};
+
+class FFrameBuffer
+{
+
+private:
+
+    friend class FCameraComponent;
+
+    GLuint FBO;
+
+    static constexpr int MaxSupportColorAttachment = 4;
+
+    std::vector<std::function<void(void)>> cmds;
+
+    void Use()
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    }
+
+public:
+	FTextureRef Color[MaxSupportColorAttachment];
+    FTextureRef Depth;
+
+    glm::vec4 clearColor;
+
+    void Clear()
+    {
+        Use();
+        glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    FFrameBuffer() : FBO(GL_NONE), clearColor(0,0,0,0){}
+
+    FFrameBuffer(int width, int height, int n, EFrameBufferColorFormat inTextureFormat) : FBO(GL_NONE), clearColor(0,0,0,0)
+    {
+        const int numOfColorAttachment = (n > MaxSupportColorAttachment) ? MaxSupportColorAttachment : n;
+        for(int i = 0; i < numOfColorAttachment; ++i)
+        {
+            Color[i] = std::make_shared<FTexture>(width, height, static_cast<ETexturePixelFormat>(inTextureFormat));
+        }
+        Depth = std::make_shared<FTexture>(width, height, ETexturePixelFormat::TPF_D24S8);
+
+        glGenFramebuffers(1, &FBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
+        for(int i = 0; i < numOfColorAttachment; ++i)
+        {
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, Color[i]->ID, 0);
+        }
+
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    ~FFrameBuffer()
+    {
+	    if(FBO != GL_NONE)
+	    {
+            glDeleteFramebuffers(1, &FBO);
+	    }
+    }
+};
 
 
 struct FPrimitiveVertexPropDesc
@@ -603,6 +731,7 @@ enum class ECullMethod
 
 class FShader
 {
+    friend class FCameraComponent;
     friend class FRenderBatch;
 
     struct TextureMark
@@ -644,7 +773,79 @@ class FShader
             break;
 	    }
     }
+    bool IsUsing() const
+    {
+        GLint currentProgram = GL_NONE;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
+        return ID != GL_NONE && ID == currentProgram;
+    }
 
+    // activate the shader
+    // ------------------------------------------------------------------------
+    void use() const
+    {
+        glUseProgram(ID);
+
+        ApplyCullMethod();
+
+        {
+            for (auto&& pair : textureMap)
+            {
+                if (pair.second.slot >= 0 && pair.second.texture->IsValid())
+                {
+                    glActiveTexture(GL_TEXTURE0 + pair.second.slot);
+                    glBindTexture(GL_TEXTURE_2D, pair.second.texture->ID);
+                    glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), pair.second.slot);
+                }
+            }
+        }
+
+
+        for (auto&& pair : boolMap)
+        {
+            glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), static_cast<int>(pair.second));
+        }
+
+        for (auto&& pair : intMap)
+        {
+            glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), pair.second);
+        }
+
+        for (auto&& pair : floatMap)
+        {
+            glUniform1f(glGetUniformLocation(ID, pair.first.c_str()), pair.second);
+        }
+
+        for (auto&& pair : vec2Map)
+        {
+            glUniform2fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
+        }
+
+        for (auto&& pair : vec3Map)
+        {
+            glUniform3fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
+        }
+
+        for (auto&& pair : vec4Map)
+        {
+            glUniform4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
+        }
+
+        for (auto&& pair : mat2Map)
+        {
+            glUniformMatrix2fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
+        }
+
+        for (auto&& pair : mat3Map)
+        {
+            glUniformMatrix3fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
+        }
+
+        for (auto&& pair : mat4Map)
+        {
+            glUniformMatrix4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
+        }
+    }
 public:
     unsigned int ID;
 
@@ -710,12 +911,7 @@ public:
         
     }
 
-    bool IsUsing() const
-    {
-        GLint currentProgram = GL_NONE;
-        glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
-        return ID != GL_NONE && ID == currentProgram;
-    }
+    
 
     virtual ~FShader()
     {
@@ -729,72 +925,6 @@ public:
         }
     }
 
-    // activate the shader
-    // ------------------------------------------------------------------------
-    void use() const
-    { 
-        glUseProgram(ID);
-
-        ApplyCullMethod();
-
-        {
-            for (auto&& pair : textureMap)
-            {
-                if (pair.second.slot >= 0 && pair.second.texture->IsValid())
-                {
-                    glActiveTexture(GL_TEXTURE0 + pair.second.slot);
-                    glBindTexture(GL_TEXTURE_2D, pair.second.texture->ID);
-                    glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), pair.second.slot);
-                }
-            }
-        }
-        
-
-        for (auto&& pair : boolMap)
-        {
-            glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), static_cast<int>(pair.second));
-        }
-
-        for (auto&& pair : intMap)
-        {
-            glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), pair.second);
-        }
-
-        for (auto&& pair : floatMap)
-        {
-            glUniform1f(glGetUniformLocation(ID, pair.first.c_str()), pair.second);
-        }
-
-        for (auto&& pair : vec2Map)
-        {
-            glUniform2fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
-        }
-
-        for (auto&& pair : vec3Map)
-        {
-            glUniform3fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
-        }
-
-        for (auto&& pair : vec4Map)
-        {
-            glUniform4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
-        }
-
-        for (auto&& pair : mat2Map)
-        {
-            glUniformMatrix2fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
-        }
-
-        for (auto&& pair : mat3Map)
-        {
-            glUniformMatrix3fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
-        }
-
-        for (auto&& pair : mat4Map)
-        {
-            glUniformMatrix4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
-        }
-    }
 
     void SetCullMethod(ECullMethod inMethod)
     {
