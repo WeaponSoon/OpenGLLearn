@@ -18,9 +18,8 @@ FCameraComponent::FDeferredDrawer& FCameraComponent::GetDeferredCmds()
     return innerDrawer;
 }
 
-FCameraComponent::FCameraComponent(glm::vec3 position) : Zoom(ZOOM)
+FCameraComponent::FCameraComponent(glm::vec3 position) :frameBufferRef(FFrameBuffer::GetDefaultFrameBuffer()), Zoom(ZOOM)
 {
-    frameBufferRef = std::make_shared<FFrameBuffer>();
     SetWorldLocation(position);
 }
 
@@ -33,7 +32,7 @@ void FCameraComponent::DrawDeferred() const
 
         std::weak_ptr<const FCameraComponent> weakThis = std::static_pointer_cast<const FCameraComponent>(this->shared_from_this());
 
-        if (frameBufferRef->IsEmpty())
+        if (!frameBufferRef || frameBufferRef->IsEmpty())
         {
             drawer.deferredCommands.emplace([weakThis]()->void
                 {
@@ -72,10 +71,10 @@ void FCameraComponent::Draw() const
             renderBatches.emplace_back(primitiveComponent->GenerateRenderBatch());
         }
     }
+    FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
+    useFrameBuffer->Use();
 
-    frameBufferRef->Use();
-
-    glm::vec4 clearColor = frameBufferRef->clearColor;
+    glm::vec4 clearColor = useFrameBuffer->clearColor;
 
     glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -86,6 +85,12 @@ void FCameraComponent::Draw() const
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()
+{
+    std::shared_ptr<FFrameBuffer> inner = std::make_shared<FFrameBuffer>();
+    return inner;
 }
 
 
