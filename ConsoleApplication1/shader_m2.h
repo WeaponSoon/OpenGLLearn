@@ -14,6 +14,7 @@
 #include <set> 
 #include <stb_image.h>
 #include <vector>
+#include <GLFW/glfw3.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -34,37 +35,205 @@ const float SPEED = 2.5f;
 const float SENSITIVITY = 0.1f;
 const float ZOOM = 45.0f;
 
-class FObject : public std::enable_shared_from_this<FObject>
+template<typename T>
+class TInterface : virtual public std::enable_shared_from_this<TInterface<T>>
 {
 public:
+    virtual ~TInterface() = default;
+};
+
+class FObject : virtual public std::enable_shared_from_this<FObject>
+{
+    static long long int GenComponentID();
+    long long int objId = -1;
+public:
+    FObject() : objId(GenComponentID())
+    {
+
+    }
+    long long int GetObjectId() const { return objId; }
     virtual ~FObject() = default;
 };
 
-class FComponent : public FObject
+class FInputReceiver
 {
-private:
-    static long long int GenComponentID();
-
-    long long int componentId = -1;
 public:
-    std::weak_ptr<class FScene> scene;
-
-    FComponent() : componentId(GenComponentID())
+    struct FInputKeyHandle
     {
-	    
+        int priority = -1;
+        std::function<void(int)> pressCallback;
+        std::function<void(int)> releaseCallback;
+        std::function<void(int)> repeatCallback;
+        std::function<void(double, double, double, double)> mouseCallback;
+    };
+
+    long long int frameIndex = 0;
+    float deltaTime = 0.0f;
+    static FInputReceiver& GetInputReceiver();
+
+    class FObjectInputKey
+    {
+    public:
+        long long int objId = -1;
+        long long int priority = -1;
+
+        bool operator<(const FObjectInputKey& other) const
+        {
+	        if(priority != other.priority)
+	        {
+                return priority < other.priority;
+	        }
+            return objId < other.objId;
+        }
+    };
+
+    std::map<int, std::tuple<bool, bool>> keyStatus;
+    double mousePos[4];
+    std::map<FObjectInputKey, FInputKeyHandle> keyHandles;
+    
+    void Execute()
+    {
+        bool bExecuteMouse = (mousePos[0] != mousePos[2] || mousePos[1] != mousePos[3]);
+
+        for (auto&& keyHandle : keyHandles)
+        {
+            for (auto&& keyStatu : keyStatus)
+            {
+                if (std::get<0>(keyStatu.second) != std::get<1>(keyStatu.second))
+                {
+                    if (std::get<0>(keyStatu.second))
+                    {
+                        if(keyHandle.second.releaseCallback)
+                        {
+                            keyHandle.second.releaseCallback(keyStatu.first);
+                        }
+                    }
+                    else
+                    {
+                        if (keyHandle.second.pressCallback)
+                        {
+                            keyHandle.second.pressCallback(keyStatu.first);
+                        }
+                    }
+                }
+                else
+                {
+	                if(std::get<0>(keyStatu.second))
+	                {
+                        if (keyHandle.second.repeatCallback)
+                        {
+                            keyHandle.second.repeatCallback(keyStatu.first);
+                        }
+	                }
+                }
+                
+            }
+            if (bExecuteMouse && keyHandle.second.mouseCallback)
+            {
+                keyHandle.second.mouseCallback(mousePos[0], mousePos[1], mousePos[2], mousePos[3]);
+            }
+        }
     }
 
-    virtual ~FComponent() = default;
+    void FinalExecute()
+    {
+        mousePos[0] = mousePos[2];
+        mousePos[1] = mousePos[3];
+        for (auto&& keyStatu : keyStatus)
+        {
+            std::get<0>(keyStatu.second) = std::get<1>(keyStatu.second);
+        }
+    }
+};
+
+
+class FComponentSubobject : public FObject
+{
+
+public:
+    std::weak_ptr<class FComponent> owner;
+
+    virtual void Init() {}
 
     virtual void PreTick(float deltaSecond) {};
 
     virtual void EarlyTick(float deltaSecond) {};
 
-    virtual void Tick(float deltaSecond){};
+    virtual void Tick(float deltaSecond) {};
 
     virtual void PostTick(float deltaSecond) {};
 
     virtual void FinalTick(float deltaSecond) {};
+};
+
+
+class FComponent : public FObject
+{
+public:
+    std::weak_ptr<class FScene> scene;
+    std::vector<std::shared_ptr<FComponentSubobject>> subobjects;
+
+    template<typename T>
+    std::shared_ptr<T> AddSubobject()
+    {
+        std::shared_ptr<T> ret = std::make_shared<T>();
+        subobjects.push_back(ret);
+        ret->owner = std::static_pointer_cast<FComponent>(this->shared_from_this());
+        ret->Init();
+        return ret;
+    }
+
+    template<typename T, typename...Args>
+    std::shared_ptr<T> AddSubobjectWithArgs(Args...args)
+    {
+        std::shared_ptr<T> ret = std::make_shared<T>(std::forward<Args>(args)...);
+        subobjects.push_back(ret);
+        ret->owner = std::static_pointer_cast<FComponent>(this->shared_from_this());
+        ret->Init();
+        return ret;
+    }
+
+    virtual ~FComponent() override = default;
+
+    virtual void PreTick(float deltaSecond)
+    {
+        for(auto&& subobject : subobjects)
+        {
+            subobject->PreTick(deltaSecond);
+        }
+    };
+
+    virtual void EarlyTick(float deltaSecond)
+    {
+        for (auto&& subobject : subobjects)
+        {
+            subobject->EarlyTick(deltaSecond);
+        }
+    };
+
+    virtual void Tick(float deltaSecond)
+    {
+        for (auto&& subobject : subobjects)
+        {
+            subobject->Tick(deltaSecond);
+        }
+    };
+
+    virtual void PostTick(float deltaSecond)
+    {
+        for (auto&& subobject : subobjects)
+        {
+            subobject->PostTick(deltaSecond);
+        }
+    };
+
+    virtual void FinalTick(float deltaSecond)
+    {
+        for (auto&& subobject : subobjects)
+        {
+            subobject->FinalTick(deltaSecond);
+        }
+    };
 };
 
 enum class EAttachRule
@@ -343,15 +512,10 @@ public:
     float farPlane = 100.f;
     float aspectRatio = 1.33f;
 
-    float Yaw;
-    float Pitch;
-    
-    float MovementSpeed;
-    float MouseSensitivity;
     float Zoom;
 
     // constructor with vectors
-    FCameraComponent(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), float yaw = YAW, float pitch = PITCH);
+    FCameraComponent(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f));
    
     ~FCameraComponent() override
     {
@@ -360,6 +524,7 @@ public:
 
     virtual void FinalTick(float deltaSecond) override
     {
+        FComponent::FinalTick(deltaSecond);
 	    if(bDrawEveryFrame)
 	    {
             DrawDeferred();
@@ -390,77 +555,123 @@ public:
         return ret;
     }
 
-    // processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
-    void ProcessKeyboard(ECameraMovement direction, float deltaTime)
-    {
-        float velocity = MovementSpeed * deltaTime;
-        if (direction == ECameraMovement::FORWARD)
-            SetWorldLocation(GetWorldLocation() + GetFowardInWorldSpace() * velocity);
 
-    	if (direction == ECameraMovement::BACKWARD)
-            SetWorldLocation(GetWorldLocation() - GetFowardInWorldSpace() * velocity);
-            
-        if (direction == ECameraMovement::LEFT)
-            SetWorldLocation(GetWorldLocation() - GetRightInWorldSpace() * velocity);
-            
-        if (direction == ECameraMovement::RIGHT)
-            SetWorldLocation(GetWorldLocation() + GetRightInWorldSpace() * velocity);
-
-        if (direction == ECameraMovement::Up)
-            SetWorldLocation(GetWorldLocation() + GetUpInWorldSpace() * velocity);
-
-        if (direction == ECameraMovement::Down)
-            SetWorldLocation(GetWorldLocation() - GetUpInWorldSpace() * velocity);
-            
-    }
-
-    // processes input received from a mouse input system. Expects the offset value in both the x and y direction.
-    void ProcessMouseMovement(float xoffset, float yoffset, GLboolean constrainPitch = true)
-    {
-        xoffset *= MouseSensitivity;
-        yoffset *= MouseSensitivity;
-
-        Yaw -= xoffset;
-        Pitch += yoffset;
-        
-        // make sure that when pitch is out of bounds, screen doesn't get flipped
-        if (constrainPitch)
-        {
-            if (Pitch > 89.0f)
-                Pitch = 89.0f;
-            if (Pitch < -89.0f)
-                Pitch = -89.0f;
-        }
-
-        // update Front, Right and Up Vectors using the updated Euler angles
-        updateCameraVectors();
-    }
-
-    // processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
-    void ProcessMouseScroll(float yoffset)
-    {
-        Zoom -= (float)yoffset;
-        if (Zoom < 1.0f)
-            Zoom = 1.0f;
-        if (Zoom > 45.0f)
-            Zoom = 45.0f;
-    }
-
-private:
-    // calculates the front vector from the Camera's (updated) Euler Angles
-    void updateCameraVectors()
-    {
-        // calculate the new Front vector
-        auto transform = glm::translate(glm::mat4(1.0f), GetWorldLocation()) * 
-            glm::rotate(glm::mat4(1.0f), glm::radians(Yaw), glm::vec3(0,1,0)) * 
-            glm::rotate(glm::mat4(1.0f), glm::radians(Pitch), glm::vec3(1, 0, 0));
-
-        SetWorldTransform(transform);
-    }
 };
 
 
 using FCameraRef = std::shared_ptr<FCameraComponent>;
+
+class FSimpleImputMoveComponentSubobject : public FComponentSubobject
+{
+public:
+    std::weak_ptr<FSceneComponent> sceneCompOwner;
+
+    float MovementSpeed = SPEED;
+    int priority;
+    float Yaw;
+    float Pitch;
+    FSimpleImputMoveComponentSubobject(int inPriority, float yaw = YAW, float pitch = PITCH) :priority(inPriority),  Yaw(yaw), Pitch(pitch)
+    {
+
+    }
+
+    virtual void Init() override
+    {
+        sceneCompOwner = std::dynamic_pointer_cast<FSceneComponent>(owner.lock());
+        FInputReceiver::FObjectInputKey key;
+        key.priority = priority;
+        key.objId = sceneCompOwner.lock()->GetObjectId();
+
+        auto&& inputHandle = FInputReceiver::GetInputReceiver().keyHandles[key];
+        std::weak_ptr<FSimpleImputMoveComponentSubobject> weakThis = std::static_pointer_cast<FSimpleImputMoveComponentSubobject>(this->shared_from_this());
+        inputHandle.mouseCallback = [weakThis](double prePosX, double prePosY, double curPosX, double curPosY)->void
+        {
+            std::shared_ptr<FSimpleImputMoveComponentSubobject> safeThis = weakThis.lock();
+            if(safeThis)
+            {
+                float xoffset = curPosX - prePosX;
+                float yoffset = curPosY - prePosY;
+                xoffset *= 0.1f;
+                yoffset *= 0.1f;
+
+                safeThis->Yaw -= xoffset;
+                safeThis->Pitch -= yoffset;
+
+                
+				if (safeThis->Pitch > 89.0f)
+                    safeThis->Pitch = 89.0f;
+				if (safeThis->Pitch < -89.0f)
+                    safeThis->Pitch = -89.0f;
+
+
+                safeThis->updateSceneComponentVectors();
+            }
+        };
+
+
+        inputHandle.repeatCallback = [weakThis](int key)->void
+        {
+            std::shared_ptr<FSimpleImputMoveComponentSubobject> safeThis = weakThis.lock();
+            if (safeThis)
+            {
+                std::shared_ptr<FSceneComponent> cameraOwner = safeThis->sceneCompOwner.lock();
+                ECameraMovement direction;
+
+
+                if (key == GLFW_KEY_W)
+                    direction = ECameraMovement::FORWARD;
+                else if (key == GLFW_KEY_S)
+                    direction = ECameraMovement::BACKWARD;
+                else if (key == GLFW_KEY_A)
+                    direction = ECameraMovement::LEFT;
+                else if (key == GLFW_KEY_D)
+                    direction = ECameraMovement::RIGHT;
+                else if (key == GLFW_KEY_E)
+                    direction = ECameraMovement::Up;
+                else if (key == GLFW_KEY_Q)
+                    direction = ECameraMovement::Down;
+                else
+                    return;
+
+                float velocity = safeThis->MovementSpeed * FInputReceiver::GetInputReceiver().deltaTime;
+                if (direction == ECameraMovement::FORWARD)
+                    cameraOwner->SetWorldLocation(cameraOwner->GetWorldLocation() + cameraOwner->GetFowardInWorldSpace() * velocity);
+
+                if (direction == ECameraMovement::BACKWARD)
+                    cameraOwner->SetWorldLocation(cameraOwner->GetWorldLocation() - cameraOwner->GetFowardInWorldSpace() * velocity);
+
+                if (direction == ECameraMovement::LEFT)
+                    cameraOwner->SetWorldLocation(cameraOwner->GetWorldLocation() - cameraOwner->GetRightInWorldSpace() * velocity);
+
+                if (direction == ECameraMovement::RIGHT)
+                    cameraOwner->SetWorldLocation(cameraOwner->GetWorldLocation() + cameraOwner->GetRightInWorldSpace() * velocity);
+
+                if (direction == ECameraMovement::Up)
+                    cameraOwner->SetWorldLocation(cameraOwner->GetWorldLocation() + cameraOwner->GetUpInWorldSpace() * velocity);
+
+                if (direction == ECameraMovement::Down)
+                    cameraOwner->SetWorldLocation(cameraOwner->GetWorldLocation() - cameraOwner->GetUpInWorldSpace() * velocity);
+            }
+        };
+
+
+    }
+
+    // calculates the front vector from the Camera's (updated) Euler Angles
+    void updateSceneComponentVectors()
+    {
+        std::shared_ptr<FSceneComponent> safeOwner = sceneCompOwner.lock();
+        // calculate the new Front vector
+        auto transform = glm::translate(glm::mat4(1.0f), safeOwner->GetWorldLocation()) *
+            glm::rotate(glm::mat4(1.0f), glm::radians(Yaw), glm::vec3(0, 1, 0)) *
+            glm::rotate(glm::mat4(1.0f), glm::radians(Pitch), glm::vec3(1, 0, 0));
+
+        safeOwner->SetWorldTransform(transform);
+    }
+
+};
+
+
 
 enum class ETextureWarpMethod
 {

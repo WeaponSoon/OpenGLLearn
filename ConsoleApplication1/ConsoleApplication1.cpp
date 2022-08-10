@@ -14,11 +14,12 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow* window);
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
-std::weak_ptr<FCameraComponent> cameraComp;
+
 
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
@@ -125,6 +126,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
+    glfwSetKeyCallback(window, key_callback);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -176,7 +178,8 @@ int main()
     tex[1] = std::make_shared<FTexture>(("./awesomeface.png"), ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
 
     //给场景添加一个相机
-    cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
+    auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
+    cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
 
     //创建一个FrameBuffer
     FFrameBufferRef frameBuffer = std::make_shared<FFrameBuffer>(256, 256, 1, EFrameBufferColorFormat::FCF_RGBA);
@@ -207,7 +210,7 @@ int main()
     cameraFollower->Shader->SetTexture("texture1", tex[0]);
     cameraFollower->Shader->SetTexture("texture2", tex[1]);
     cameraFollower->Shader->setVec4("uniColor", 1, 1, 1, 1);
-    cameraFollower->AttachTo(cameraComp.lock(), EAttachRule::AR_KeepRelative);
+    cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
     cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));
 
 
@@ -223,6 +226,7 @@ int main()
         primitive->Shader = std::make_shared<FShader>(*ourShader); //为了方便区别不同的渲染组件，每个渲染组件都使用自己独立的shader，方便起见用ourShader作为模板复制一份出来;
         primitive->SetWorldTransform(model);
 
+        //primitive->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
         //为了方便展示，不同的渲染组件交替使用两个模型    
         if (i % 2)
         {
@@ -250,18 +254,23 @@ int main()
 
         // input
         // -----
-        processInput(window);
+        glfwPollEvents();
+    	FInputReceiver::GetInputReceiver().deltaTime = deltaTime;
+        FInputReceiver::GetInputReceiver().Execute();
+
 
         // game logic
         // ----------
         scene->Tick(deltaTime);
 
+        FInputReceiver::GetInputReceiver().FinalExecute();
+        FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);
-        glfwPollEvents();
+        
     }
 
     glfwTerminate();
@@ -271,23 +280,21 @@ int main()
 
 void processInput(GLFWwindow* window)
 {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraComp.lock()->ProcessKeyboard(ECameraMovement::FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraComp.lock()->ProcessKeyboard(ECameraMovement::BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraComp.lock()->ProcessKeyboard(ECameraMovement::LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraComp.lock()->ProcessKeyboard(ECameraMovement::RIGHT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-        cameraComp.lock()->ProcessKeyboard(ECameraMovement::Up, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-        cameraComp.lock()->ProcessKeyboard(ECameraMovement::Down, deltaTime);
 }
 
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if(key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
+    {
+        glfwSetWindowShouldClose(window, true);
+    }
+
+    if(action == GLFW_PRESS || action == GLFW_RELEASE)
+    {
+        std::get<1>(FInputReceiver::GetInputReceiver().keyStatus[key]) = (action == GLFW_PRESS);
+    }
+}
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
@@ -299,27 +306,12 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
-    float xpos = static_cast<float>(xposIn);
-    float ypos = static_cast<float>(yposIn);
-
-    if (firstMouse)
-    {
-        lastX = xpos;
-        lastY = ypos;
-        firstMouse = false;
-    }
-
-    float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
-
-    lastX = xpos;
-    lastY = ypos;
-
-    cameraComp.lock()->ProcessMouseMovement(xoffset, yoffset);
+    FInputReceiver::GetInputReceiver().mousePos[2] = xposIn;
+    FInputReceiver::GetInputReceiver().mousePos[3] = yposIn;
 }
 
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    cameraComp.lock()->ProcessMouseScroll(static_cast<float>(yoffset));
+    //cameraComp.lock()->ProcessMouseScroll(static_cast<float>(yoffset));
 }

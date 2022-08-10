@@ -1,6 +1,12 @@
 #include "shader_m2.h"
 
-long long FComponent::GenComponentID()
+FInputReceiver& FInputReceiver::GetInputReceiver()
+{
+    static FInputReceiver innerReceiver;
+    return innerReceiver;
+}
+
+long long FObject::GenComponentID()
 {
     static long long int curId = 0;
     return curId++;
@@ -12,13 +18,10 @@ FCameraComponent::FDeferredDrawer& FCameraComponent::GetDeferredCmds()
     return innerDrawer;
 }
 
-FCameraComponent::FCameraComponent(glm::vec3 position, float yaw, float pitch) : MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
+FCameraComponent::FCameraComponent(glm::vec3 position) : Zoom(ZOOM)
 {
     frameBufferRef = std::make_shared<FFrameBuffer>();
     SetWorldLocation(position);
-    Yaw = yaw;
-    Pitch = pitch;
-    updateCameraVectors();
 }
 
 void FCameraComponent::DrawDeferred() const
