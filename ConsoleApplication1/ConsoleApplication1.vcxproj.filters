@@ -21,7 +21,7 @@
     <ClCompile Include="glad.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="shader_m2.cpp">
+    <ClCompile Include="basic_imp.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="stb_image.cpp">
@@ -29,10 +29,34 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="shader_m2.h">
-      <Filter>源文件</Filter>
-    </ClInclude>
     <ClInclude Include="mode_m2l.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="light_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="core_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="scene_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="primitive_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="camera_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="input_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="primitive_move_m2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="shader_m2.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

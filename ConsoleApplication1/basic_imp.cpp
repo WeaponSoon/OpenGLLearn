@@ -1,4 +1,7 @@
 #include "shader_m2.h"
+#include "primitive_m2.h"
+#include "input_m2.h"
+#include "primitive_move_m2.h"
 
 FInputReceiver& FInputReceiver::GetInputReceiver()
 {

@@ -153,12 +153,20 @@
   <ItemGroup>
     <ClCompile Include="ConsoleApplication1.cpp" />
     <ClCompile Include="glad.c" />
-    <ClCompile Include="shader_m2.cpp" />
+    <ClCompile Include="basic_imp.cpp" />
     <ClCompile Include="stb_image.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="camera_m2.h" />
+    <ClInclude Include="core_m2.h" />
+    <ClInclude Include="input_m2.h" />
+    <ClInclude Include="light_m2.h" />
     <ClInclude Include="mode_m2l.h" />
+    <ClInclude Include="primitive_m2.h" />
+    <ClInclude Include="primitive_move_m2.h" />
+    <ClInclude Include="scene_m2.h" />
     <ClInclude Include="shader_m2.h" />
+    <ClInclude Include="texture_m2.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

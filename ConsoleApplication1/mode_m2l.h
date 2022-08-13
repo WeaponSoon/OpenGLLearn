@@ -10,7 +10,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include <shader_m2.h>
+#include "primitive_m2.h"
 
 
 #include <string>

@@ -17,6 +17,7 @@ uniform vec3 EnvLightColor;
 
 uniform highp vec3 cameraPos;
 
+
 // texture samplers
 uniform sampler2D Albedo;
 uniform sampler2D Specular;
@@ -36,7 +37,7 @@ vec3 GetAlbedo(vec2 InUV)
 
 vec3 GetSpecular(vec2 InUV)
 {
-	return texture(Specular, InUV).rgb;
+	return texture(Specular, InUV).rrr;
 }
 
 float GetRoughness(vec2 InUV)

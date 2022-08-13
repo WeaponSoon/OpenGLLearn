@@ -8,7 +8,8 @@
 
 #include <iostream>
 
-#include "shader_m2.h"
+#include "primitive_m2.h"
+#include "primitive_move_m2.h"
 #include "mode_m2l.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -214,9 +215,16 @@ int main()
     cameraFollower->GetShader(0)->SetTexture("texture2", tex[1]);
     cameraFollower->GetShader(0)->setVec4("uniColor", 1, 1, 1, 1);
     cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
-    cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3)); 
+    cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));  
 
-    
+
+    FTextureRef pbrtex[5];
+    pbrtex[0] = std::make_shared<FTexture>("./objects/backpack/diffuse.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
+    pbrtex[1] = std::make_shared<FTexture>("./objects/backpack/normal.png", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
+    pbrtex[2] = std::make_shared<FTexture>("./objects/backpack/roughness.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
+    pbrtex[3] = std::make_shared<FTexture>("./objects/backpack/specular.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
+    pbrtex[4] = std::make_shared<FTexture>("./objects/backpack/ao.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
+
 
     auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
     guitaComponent->SetWorldTransform(glm::mat4(1));
@@ -224,11 +232,11 @@ int main()
     { 
         auto tempShader = std::make_shared<FShader>(*ourShader2); 
         guitaComponent->AddPrimitiveUnit(mod.primitive, tempShader);
-        tempShader->SetTexture("Albedo", mod.textures[0]);
-        tempShader->SetTexture("Specular", FTexture::GetWhite());
-        tempShader->SetTexture("Roughness", mod.textures[1]);
-        tempShader->SetTexture("Metallic", tex[1]);
-        tempShader->SetTexture("AO", FTexture::GetWhite());
+        tempShader->SetTexture("Albedo", pbrtex[0]);
+        tempShader->SetTexture("Specular", pbrtex[3]);
+        tempShader->SetTexture("Roughness", pbrtex[2]);
+        tempShader->SetTexture("Metallic", FTexture::GetWhite());
+        tempShader->SetTexture("AO", pbrtex[4]);
 
         tempShader->setVec3("DirectionalLightDir", normalize(glm::vec3(1,1,1)));
         tempShader->setVec3("DirectionalLightColor", (glm::vec3(5, 5, 5)));
@@ -237,7 +245,6 @@ int main()
         tempShader->setVec3("PointLightColor[1]", glm::vec3(0, 0, 0));
         tempShader->setVec3("PointLightColor[2]", glm::vec3(0, 0, 0));
         tempShader->setVec3("PointLightColor[3]", glm::vec3(0, 0, 0));
-
     }
 
     //再随便给场景添加10个渲染组件
