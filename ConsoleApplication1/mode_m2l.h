@@ -43,12 +43,12 @@ struct FVertex {
         FPrimitiveVertexDesc desc;
         desc.structSize = sizeof(FVertex);
         FPrimitiveVertexPropDesc positionDesc(0, (void*)offsetof(FVertex, Position), GL_FLOAT, 3);
-        FPrimitiveVertexPropDesc normalDesc(0, (void*)offsetof(FVertex, Normal), GL_FLOAT, 3);
-        FPrimitiveVertexPropDesc texCoordDesc(0, (void*)offsetof(FVertex, TexCoords), GL_FLOAT, 2);
-        FPrimitiveVertexPropDesc tangentDesc(0, (void*)offsetof(FVertex, Tangent), GL_FLOAT, 3);
-        FPrimitiveVertexPropDesc bitangentDesc(0, (void*)offsetof(FVertex, Bitangent), GL_FLOAT, 3);
-        FPrimitiveVertexPropDesc boneIDsDesc(0, (void*)offsetof(FVertex, m_BoneIDs), GL_INT, MAX_BONE_INFLUENCE);
-        FPrimitiveVertexPropDesc boneWeightsDesc(0, (void*)offsetof(FVertex, m_Weights), GL_FLOAT, MAX_BONE_INFLUENCE);
+        FPrimitiveVertexPropDesc normalDesc(1, (void*)offsetof(FVertex, Normal), GL_FLOAT, 3);
+        FPrimitiveVertexPropDesc texCoordDesc(2, (void*)offsetof(FVertex, TexCoords), GL_FLOAT, 2);
+        FPrimitiveVertexPropDesc tangentDesc(3, (void*)offsetof(FVertex, Tangent), GL_FLOAT, 3);
+        FPrimitiveVertexPropDesc bitangentDesc(4, (void*)offsetof(FVertex, Bitangent), GL_FLOAT, 3);
+        FPrimitiveVertexPropDesc boneIDsDesc(5, (void*)offsetof(FVertex, m_BoneIDs), GL_INT, MAX_BONE_INFLUENCE);
+        FPrimitiveVertexPropDesc boneWeightsDesc(6, (void*)offsetof(FVertex, m_Weights), GL_FLOAT, MAX_BONE_INFLUENCE);
         desc.props = { positionDesc , normalDesc, texCoordDesc, tangentDesc, bitangentDesc, boneIDsDesc, boneWeightsDesc};
         return desc;
     }
@@ -228,7 +228,7 @@ private:
             bool skip = false;
             for(unsigned int j = 0; j < textures_loaded.size(); j++)
             {
-                if(std::strcmp(textures_loaded[j]->path.data(), str.C_Str()) == 0)
+                if(std::strcmp(textures_loaded[j]->name.data(), str.C_Str()) == 0)
                 {
                     textures.push_back(textures_loaded[j]);
                     skip = true; // a texture with the same filepath has already been loaded, continue to next one. (optimization)
@@ -250,8 +250,12 @@ private:
 FTextureRef TextureFromFile(const char *path, const std::string &directory, bool gamma)
 {
 	std::string filename = std::string(path);
-    filename = directory + '/' + filename;
 
-    return std::make_shared<FTexture>(directory, ETextureWarpMethod::TWM_Repeat, ETextureFilterMethod::TFM_TriLinear);
+	std::string dirandname = directory + '/' + filename;
+
+    auto ret = std::make_shared<FTexture>(dirandname, ETextureWarpMethod::TWM_Repeat, ETextureFilterMethod::TFM_TriLinear);
+    ret->name = filename;
+
+    return ret;
 }
 #endif

@@ -87,9 +87,21 @@ void FCameraComponent::Draw() const
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+std::shared_ptr<FTexture>& FTexture::GetBlack()
+{
+    static FTextureRef inner = std::make_shared<FTexture>(glm::vec3(0, 0, 0));
+    return inner;
+}
+
+std::shared_ptr<FTexture>& FTexture::GetWhite()
+{
+    static FTextureRef inner = std::make_shared<FTexture>(glm::vec3(1, 1, 1));
+    return inner;
+}
+
 const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()
 {
-    std::shared_ptr<FFrameBuffer> inner = std::make_shared<FFrameBuffer>();
+    static std::shared_ptr<FFrameBuffer> inner = std::make_shared<FFrameBuffer>();
     return inner;
 }
 

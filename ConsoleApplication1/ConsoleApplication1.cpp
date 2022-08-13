@@ -120,7 +120,7 @@ int main()
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
     {
-        std::cout << "Failed to create GLFW window" << std::endl;
+        std::cout << "Failed to create GLFW window" << std::endl; 
         glfwTerminate();
         return -1;
     }
@@ -138,6 +138,9 @@ int main()
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
+
+    FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
+
     FModel model("./objects/backpack/backpack.obj");
 
     glEnable(GL_DEPTH_TEST);
@@ -195,7 +198,7 @@ int main()
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = frameBuffer->Color[0];
 
-
+     
     //创建一个渲染组件，作为场景的一个地面
     auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
     groundComponent->AddPrimitiveUnit(ground, std::make_shared<FShader>(*ourShader));//地面用那个大一点的平面模型，方便起见用ourShader作为模板复制一份出来
@@ -211,17 +214,30 @@ int main()
     cameraFollower->GetShader(0)->SetTexture("texture2", tex[1]);
     cameraFollower->GetShader(0)->setVec4("uniColor", 1, 1, 1, 1);
     cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
-    cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));
+    cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3)); 
+
+    
 
     auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
-    guitaComponent->SetWorldTransform(glm::scale(glm::mat4(1), glm::vec3(10,10,10)));
+    guitaComponent->SetWorldTransform(glm::mat4(1));
     for(auto&& mod : model.meshes)
-    {
-        auto tempShader = std::make_shared<FShader>(*ourShader);
+    { 
+        auto tempShader = std::make_shared<FShader>(*ourShader2); 
         guitaComponent->AddPrimitiveUnit(mod.primitive, tempShader);
-        tempShader->SetTexture("texture1", tex[0]);
-        tempShader->SetTexture("texture1", tex[1]);
-        
+        tempShader->SetTexture("Albedo", mod.textures[0]);
+        tempShader->SetTexture("Specular", FTexture::GetWhite());
+        tempShader->SetTexture("Roughness", mod.textures[1]);
+        tempShader->SetTexture("Metallic", tex[1]);
+        tempShader->SetTexture("AO", FTexture::GetWhite());
+
+        tempShader->setVec3("DirectionalLightDir", normalize(glm::vec3(1,1,1)));
+        tempShader->setVec3("DirectionalLightColor", (glm::vec3(5, 5, 5)));
+        tempShader->setVec3("EnvLightColor", glm::vec3(0.02, 0.02, 0.02));
+        tempShader->setVec3("PointLightColor[0]", glm::vec3(0,0,0));
+        tempShader->setVec3("PointLightColor[1]", glm::vec3(0, 0, 0));
+        tempShader->setVec3("PointLightColor[2]", glm::vec3(0, 0, 0));
+        tempShader->setVec3("PointLightColor[3]", glm::vec3(0, 0, 0));
+
     }
 
     //再随便给场景添加10个渲染组件
@@ -246,7 +262,7 @@ int main()
             primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
             primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
         }
-
+         
         //给每个渲染组件的shader设置不同的参数，方便看效果
         primitive->GetShader(0)->setVec4("uniColor", i / 10.0f, 1.0f - i / 10.0f, i / 10.0f, 1);
         primitive->GetShader(0)->SetTexture("texture1", tex[i % 3]);

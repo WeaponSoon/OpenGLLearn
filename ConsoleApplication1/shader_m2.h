@@ -702,11 +702,56 @@ enum class ETexturePixelFormat : int
 class FTexture
 {
 public:
+    FTexture(glm::vec3 inColor) : TextureFormat(ETexturePixelFormat::TPF_RGB)
+    {
+
+        glGenTextures(1, &ID);
+        glBindTexture(GL_TEXTURE_2D, ID);
+
+        int format = GL_NONE;
+        int elementType = GL_NONE;
+        switch (TextureFormat)
+        {
+        case ETexturePixelFormat::TPF_Unknow: break;
+        case ETexturePixelFormat::TPF_RGB:
+            format = GL_RGB;
+            elementType = GL_UNSIGNED_BYTE;
+            break;
+        case ETexturePixelFormat::TPF_RGBA:
+            format = GL_RGBA;
+            elementType = GL_UNSIGNED_BYTE;
+            break;
+        case ETexturePixelFormat::TPF_RGBA16F:
+            format = GL_RGBA;
+            elementType = GL_FLOAT;
+            break;
+        case ETexturePixelFormat::TPF_D24S8:
+            format = GL_DEPTH_STENCIL;
+            elementType = GL_UNSIGNED_INT_24_8;
+            break;
+        }
+        auto clampedColor = glm::clamp(inColor, glm::vec3(0,0,0), glm::vec3(1, 1, 1));
+        
+        unsigned char colorData[] = {  (unsigned char)(clampedColor.r*255), (unsigned char)(clampedColor.g*255), (unsigned char)(clampedColor.b*255) };
+        glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(TextureFormat), 1, 1, 0, format, elementType, colorData);
+
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+
     unsigned int ID;
 
     std::string path;
+    std::string name;
 
     ETexturePixelFormat TextureFormat;
+
+    static std::shared_ptr<FTexture>& GetBlack();
+    static std::shared_ptr<FTexture>& GetWhite();
 
     FTexture(int width, int height, ETexturePixelFormat inTextureFormat, bool bGenMipmap = false) : ID(GL_NONE), TextureFormat(ETexturePixelFormat::TPF_Unknow)
     {
@@ -758,6 +803,7 @@ public:
 
     FTexture(const std::string& texturePath, ETextureWarpMethod warpMethod, ETextureFilterMethod filterMethod) : ID(GL_NONE), TextureFormat(ETexturePixelFormat::TPF_Unknow)
     {
+        path = texturePath;
         int width, height, nrChannels;
         auto data = stbi_load(texturePath.c_str(), &width, &height, &nrChannels, 0);
         if (data)
@@ -801,7 +847,7 @@ public:
 
             glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
-            path = texturePath;
+            
         }
         else
         {
@@ -1136,7 +1182,7 @@ public:
     }
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
-    FShader(const char* vertexPath, const char* fragmentPath)
+    FShader(const char* vertexPath, const char* fragmentPath) : ID(GL_NONE)
     {
         // 1. retrieve the vertex/fragment source code from filePath
         std::string vertexCode;
@@ -1165,6 +1211,7 @@ public:
         catch (std::ifstream::failure& e)
         {
             std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << e.what() << std::endl;
+            return;
         }
         const char* vShaderCode = vertexCode.c_str();
         const char * fShaderCode = fragmentCode.c_str();
@@ -1185,7 +1232,14 @@ public:
         glAttachShader(ID, vertex);
         glAttachShader(ID, fragment);
         glLinkProgram(ID);
-        checkCompileErrors(ID, "PROGRAM");
+        if(!checkCompileErrors(ID, "PROGRAM"))
+        {
+            glDeleteShader(vertex);
+            glDeleteShader(fragment);
+            glDeleteProgram(ID);
+            ID = GL_NONE;
+            return;
+        }
         // delete the shaders as they're linked into our program now and no longer necessery
         glDeleteShader(vertex);
         glDeleteShader(fragment);
@@ -1397,7 +1451,7 @@ public:
 private:
     // utility function for checking shader compilation/linking errors.
     // ------------------------------------------------------------------------
-    void checkCompileErrors(GLuint shader, std::string type)
+    bool checkCompileErrors(GLuint shader, std::string type)
     {
         GLint success;
         GLchar infoLog[1024];
@@ -1408,6 +1462,7 @@ private:
             {
                 glGetShaderInfoLog(shader, 1024, NULL, infoLog);
                 std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+                return false;
             }
         }
         else
@@ -1417,6 +1472,7 @@ private:
             {
                 glGetProgramInfoLog(shader, 1024, NULL, infoLog);
                 std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+                return false;
             }
         }
     }
@@ -1436,12 +1492,12 @@ public:
     void Draw(const FCameraRef& camera)
     {
         if(Primitive && Shader)
-        {
+        { 
             FView&& view = camera->GetView();
             Shader->setMat4("projection", view.project);
             Shader->setMat4("view", view.view);
             Shader->setMat4("model", model);
-
+            Shader->setVec3("cameraPos", camera->GetWorldLocation());
             Shader->use();
             Primitive->use();
 
