@@ -68,7 +68,7 @@ void FCameraComponent::Draw() const
         auto primitiveComponent = std::dynamic_pointer_cast<FPrimitiveComponent>(component);
         if (primitiveComponent)
         { 
-            renderBatches.emplace_back(primitiveComponent->GenerateRenderBatch());
+            primitiveComponent->GenerateRenderBatch(renderBatches);
         }
     }
     FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
@@ -83,8 +83,8 @@ void FCameraComponent::Draw() const
     {
         renderBatch.Draw(std::static_pointer_cast<FCameraComponent>(((FCameraComponent*)this)->shared_from_this()));
     }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glUseProgram(0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()

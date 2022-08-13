@@ -32,6 +32,9 @@
     <ClInclude Include="shader_m2.h">
       <Filter>源文件</Filter>
     </ClInclude>
+    <ClInclude Include="mode_m2l.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="simple_shader.fs">

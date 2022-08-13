@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "shader_m2.h"
+#include "mode_m2l.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -104,6 +105,7 @@ int main()
         glm::vec3(-1.3f,  0.0f, -1.5f)
     };
 
+
 #endif
 
     glfwInit();
@@ -136,7 +138,7 @@ int main()
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
-
+    FModel model("./objects/backpack/backpack.obj");
 
     glEnable(GL_DEPTH_TEST);
 
@@ -149,7 +151,7 @@ int main()
     FPrimitiveVertexDesc vertexDesc;
     vertexDesc.structSize = 5 * sizeof(int);
     vertexDesc.props.emplace_back(0, reinterpret_cast<void*>(0), GL_FLOAT, 3);
-    vertexDesc.props.emplace_back(1, reinterpret_cast<void*>(3 * sizeof(float)), GL_FLOAT, 2);
+    vertexDesc.props.emplace_back(2, reinterpret_cast<void*>(3 * sizeof(float)), GL_FLOAT, 2);
 
     //创建一个立方体模型
     FPrimitiveRef cube = std::make_shared<FPrimitive>();
@@ -196,23 +198,31 @@ int main()
 
     //创建一个渲染组件，作为场景的一个地面
     auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
-    groundComponent->Primitive = ground;//地面用那个大一点的平面模型
+    groundComponent->AddPrimitiveUnit(ground, std::make_shared<FShader>(*ourShader));//地面用那个大一点的平面模型，方便起见用ourShader作为模板复制一份出来
     groundComponent->SetWorldTransform(glm::mat4(1.0f));
-    groundComponent->Shader = std::make_shared<FShader>(*ourShader);//方便起见用ourShader作为模板复制一份出来
-    groundComponent->Shader->SetTexture("texture1", tex[0]);
-    groundComponent->Shader->SetTexture("texture2", tex[1]);
-    groundComponent->Shader->setVec4("uniColor", 1, 1, 1, 1);
+    groundComponent->GetShader(0)->SetTexture("texture1", tex[0]);
+    groundComponent->GetShader(0)->SetTexture("texture2", tex[1]);
+    groundComponent->GetShader(0)->setVec4("uniColor", 1, 1, 1, 1);
 
     //创建一个场景组件，并作为相机的子物体
     auto cameraFollower = scene->CreateComponent<FPrimitiveComponent>();
-    cameraFollower->Primitive = cube;//用立方体模型
-    cameraFollower->Shader = std::make_shared<FShader>(*ourShader);//方便起见用ourShader作为模板复制一份出来
-    cameraFollower->Shader->SetTexture("texture1", tex[0]);
-    cameraFollower->Shader->SetTexture("texture2", tex[1]);
-    cameraFollower->Shader->setVec4("uniColor", 1, 1, 1, 1);
+    cameraFollower->AddPrimitiveUnit(cube, std::make_shared<FShader>(*ourShader));//用立方体模型，方便起见用ourShader作为模板复制一份出来
+    cameraFollower->GetShader(0)->SetTexture("texture1", tex[0]);
+    cameraFollower->GetShader(0)->SetTexture("texture2", tex[1]);
+    cameraFollower->GetShader(0)->setVec4("uniColor", 1, 1, 1, 1);
     cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
     cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));
 
+    auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
+    guitaComponent->SetWorldTransform(glm::scale(glm::mat4(1), glm::vec3(10,10,10)));
+    for(auto&& mod : model.meshes)
+    {
+        auto tempShader = std::make_shared<FShader>(*ourShader);
+        guitaComponent->AddPrimitiveUnit(mod.primitive, tempShader);
+        tempShader->SetTexture("texture1", tex[0]);
+        tempShader->SetTexture("texture1", tex[1]);
+        
+    }
 
     //再随便给场景添加10个渲染组件
     for (unsigned int i = 0; i < 10; i++)
@@ -223,25 +233,24 @@ int main()
         model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
 
         auto primitive = scene->CreateComponent<FPrimitiveComponent>();
-        primitive->Shader = std::make_shared<FShader>(*ourShader); //为了方便区别不同的渲染组件，每个渲染组件都使用自己独立的shader，方便起见用ourShader作为模板复制一份出来;
+        
         primitive->SetWorldTransform(model);
 
-        //primitive->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
         //为了方便展示，不同的渲染组件交替使用两个模型    
         if (i % 2)
         {
-            primitive->Primitive = cube;
+            primitive->AddPrimitiveUnit(cube, std::make_shared<FShader>(*ourShader));
         }
         else
         {
-            primitive->Primitive = plane;
-            primitive->Shader->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
+            primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
+            primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
         }
 
         //给每个渲染组件的shader设置不同的参数，方便看效果
-        primitive->Shader->setVec4("uniColor", i / 10.0f, 1.0f - i / 10.0f, i / 10.0f, 1);
-        primitive->Shader->SetTexture("texture1", tex[i % 3]);
-        primitive->Shader->SetTexture("texture2", tex[((i + 1) % 3)]);
+        primitive->GetShader(0)->setVec4("uniColor", i / 10.0f, 1.0f - i / 10.0f, i / 10.0f, 1);
+        primitive->GetShader(0)->SetTexture("texture1", tex[i % 3]);
+        primitive->GetShader(0)->SetTexture("texture2", tex[((i + 1) % 3)]);
 
     }
 

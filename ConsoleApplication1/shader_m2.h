@@ -692,6 +692,7 @@ enum class ETextureFilterMethod
 enum class ETexturePixelFormat : int
 {
     TPF_Unknow = GL_NONE,
+    TPF_R = GL_RED,
 	TPF_RGB = GL_RGB,
     TPF_RGBA = GL_RGBA,
     TPF_RGBA16F = GL_RGBA16F,
@@ -703,9 +704,11 @@ class FTexture
 public:
     unsigned int ID;
 
+    std::string path;
+
     ETexturePixelFormat TextureFormat;
 
-    FTexture(int width, int height, ETexturePixelFormat inTextureFormat, bool bGenMipmap = false) : ID(GL_NONE)
+    FTexture(int width, int height, ETexturePixelFormat inTextureFormat, bool bGenMipmap = false) : ID(GL_NONE), TextureFormat(ETexturePixelFormat::TPF_Unknow)
     {
         if(inTextureFormat == ETexturePixelFormat::TPF_Unknow)
         {
@@ -762,6 +765,10 @@ public:
             int format;
             switch (nrChannels)
             {
+            case 1:
+                format = GL_RED;
+                TextureFormat = ETexturePixelFormat::TPF_R;
+                break;
             case 3:
                 format = GL_RGB;
                 TextureFormat = ETexturePixelFormat::TPF_RGB;
@@ -792,8 +799,9 @@ public:
             
             
 
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
+            path = texturePath;
         }
         else
         {
@@ -876,12 +884,12 @@ public:
         Depth = std::make_shared<FTexture>(width, height, ETexturePixelFormat::TPF_D24S8);
 
         glGenFramebuffers(1, &FBO);
-        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO); 
 
         for(int i = 0; i < numOfColorAttachment; ++i)
         {
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, Color[i]->ID, 0);
-        }
+        } 
 
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
 
@@ -929,6 +937,15 @@ class FPrimitive
     int numOfVertex = 0;
     int numOfIndices = 0;
 public:
+
+    template<typename T>
+    void SetDataByStruct(const std::vector<T>& vertexData, const std::vector<unsigned int>& indicesData)
+    {
+        std::vector<char> dataInBytes;
+        dataInBytes.resize(sizeof(T) * vertexData.size());
+        memcpy(dataInBytes.data(), vertexData.data(), dataInBytes.size());
+        SetData(dataInBytes, indicesData, T::GetVertexLayout());
+    }
 
     void SetData(const std::vector<char>& vertexData, const std::vector<unsigned int>& indicesData, const FPrimitiveVertexDesc& desc)
     {
@@ -1418,42 +1435,86 @@ public:
 
     void Draw(const FCameraRef& camera)
     {
-        FView&& view = camera->GetView();
-        Shader->setMat4("projection", view.project);
-        Shader->setMat4("view", view.view);
-        Shader->setMat4("model", model);
-
-        Shader->use();
-        Primitive->use();
-
-        if(Primitive->GetNumOfIndices() > 0)
+        if(Primitive && Shader)
         {
-            glDrawElements(GL_TRIANGLES, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
-        }
-        else
-        {
-            glDrawArrays(GL_TRIANGLES, 0, Primitive->GetNumOfVertex());
-        }
+            FView&& view = camera->GetView();
+            Shader->setMat4("projection", view.project);
+            Shader->setMat4("view", view.view);
+            Shader->setMat4("model", model);
 
-        glBindVertexArray(0);
+            Shader->use();
+            Primitive->use();
+
+            if (Primitive->GetNumOfIndices() > 0)
+            {
+                glDrawElements(GL_TRIANGLES, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+            }
+            else
+            {
+                glDrawArrays(GL_TRIANGLES, 0, Primitive->GetNumOfVertex());
+            }
+
+            glBindVertexArray(0);
+        }
     }
 };
 
-
-class FPrimitiveComponent : public FSceneComponent
+struct FPrimitiveUnit
 {
-public:
     FPrimitiveRef Primitive;
     FShaderRef Shader;
 
-    
-    virtual FRenderBatch GenerateRenderBatch() const
+    FPrimitiveUnit(FPrimitiveRef inPrimitive, FShaderRef inShader) : Primitive(inPrimitive), Shader(inShader)
     {
-        FRenderBatch ret;
-        ret.model = GetWorldTransform();
-        ret.Primitive = Primitive;
-        ret.Shader = Shader;
-        return ret;
+	    
+    }
+};
+
+class FPrimitiveComponent : public FSceneComponent
+{
+    std::vector<FPrimitiveUnit> primitives;
+public:
+
+    virtual size_t GetPrimitiveCount() const
+    {
+        return primitives.size();
+    }
+
+    virtual FPrimitiveRef GetPrimitive(int id) const
+    {
+        return primitives[id].Primitive;
+    }
+
+    virtual FShaderRef GetShader(int id) const
+    {
+        return primitives[id].Shader;
+    }
+
+    virtual void SetPrimitive(int id, FPrimitiveRef inPrimitive)
+    {
+        primitives[id].Primitive = inPrimitive;
+    }
+
+    virtual void SetShader(int id, FShaderRef inShader)
+    {
+        primitives[id].Shader = inShader;
+    }
+
+    virtual void AddPrimitiveUnit(FPrimitiveRef inPrimitve, FShaderRef inShader)
+    {
+        primitives.emplace_back(inPrimitve, inShader);
+    }
+
+    virtual void GenerateRenderBatch(std::vector<FRenderBatch>& outRenderBatch) const
+    {
+        for(auto&& unit : primitives)
+        {
+            FRenderBatch render_batch;
+            render_batch.Shader = unit.Shader;
+            render_batch.Primitive = unit.Primitive;
+            render_batch.model = GetWorldTransform();
+            outRenderBatch.push_back(render_batch);
+        }
     }
 };
 
