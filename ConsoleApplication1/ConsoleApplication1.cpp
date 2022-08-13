@@ -11,6 +11,7 @@
 #include "primitive_m2.h"
 #include "primitive_move_m2.h"
 #include "mode_m2l.h"
+#include "light_m2.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -30,6 +31,62 @@ bool firstMouse = true;
 // timing
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+class FTestLightControlSubobject : public FComponentSubobject
+{
+public:
+    std::weak_ptr<FDirectionalLightComponent> dirRef;
+    virtual void Init() override
+    {
+        dirRef = std::dynamic_pointer_cast<FDirectionalLightComponent>(owner.lock());
+
+        FInputReceiver::FObjectInputKey key;
+        key.priority = 0;
+        key.objId = dirRef.lock()->GetObjectId();
+
+        auto&& inputHandle = FInputReceiver::GetInputReceiver().keyHandles[key];
+        std::weak_ptr<FTestLightControlSubobject> weakThis = std::static_pointer_cast<FTestLightControlSubobject>(this->shared_from_this());
+
+        inputHandle.repeatCallback = [weakThis](int key)->void
+        {
+            std::shared_ptr<FTestLightControlSubobject> safeThis = weakThis.lock();
+            if (safeThis)
+            {
+                std::shared_ptr<FDirectionalLightComponent> dirOwner = safeThis->dirRef.lock();
+                if (key == GLFW_KEY_N)
+                {
+                    auto trans = dirOwner->GetWorldTransform();
+                    glm::vec3 scale;
+                    glm::quat rotation;
+                    glm::vec3 location;
+                    glm::vec3 skew;
+                    glm::vec4 persp;
+                    glm::decompose(trans,scale,rotation, location, skew, persp);
+
+                    rotation = glm::angleAxis(glm::radians(20 * FInputReceiver::GetInputReceiver().deltaTime), glm::vec3(0, 1, 0)) * rotation;
+
+                    dirOwner->SetWorldTransform(glm::translate(glm::mat4_cast(rotation), location));
+                    
+                }
+                else if (key == GLFW_KEY_M)
+                {
+                    auto trans = dirOwner->GetWorldTransform();
+                    glm::vec3 scale;
+                    glm::quat rotation;
+                    glm::vec3 location;
+                    glm::vec3 skew;
+                    glm::vec4 persp;
+                    glm::decompose(trans, scale, rotation, location, skew, persp);
+
+                    rotation = glm::angleAxis(glm::radians(-20 * FInputReceiver::GetInputReceiver().deltaTime), glm::vec3(0, 1, 0)) * rotation;
+
+                    dirOwner->SetWorldTransform(glm::translate(glm::mat4_cast(rotation), location));
+                }
+            }
+        };
+    }
+
+};
 
 int main()
 {
@@ -226,10 +283,16 @@ int main()
     pbrtex[4] = std::make_shared<FTexture>("./objects/backpack/ao.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
 
 
+    scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.02f, 0.02f, 0.02f));
+    glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
+    scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(10.f, 10.0f, 10.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
+
+
+
     auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
     guitaComponent->SetWorldTransform(glm::mat4(1));
     for(auto&& mod : model.meshes)
-    { 
+    {  
         auto tempShader = std::make_shared<FShader>(*ourShader2); 
         guitaComponent->AddPrimitiveUnit(mod.primitive, tempShader);
         tempShader->SetTexture("Albedo", pbrtex[0]);
@@ -237,14 +300,6 @@ int main()
         tempShader->SetTexture("Roughness", pbrtex[2]);
         tempShader->SetTexture("Metallic", FTexture::GetWhite());
         tempShader->SetTexture("AO", pbrtex[4]);
-
-        tempShader->setVec3("DirectionalLightDir", normalize(glm::vec3(1,1,1)));
-        tempShader->setVec3("DirectionalLightColor", (glm::vec3(5, 5, 5)));
-        tempShader->setVec3("EnvLightColor", glm::vec3(0.02, 0.02, 0.02));
-        tempShader->setVec3("PointLightColor[0]", glm::vec3(0,0,0));
-        tempShader->setVec3("PointLightColor[1]", glm::vec3(0, 0, 0));
-        tempShader->setVec3("PointLightColor[2]", glm::vec3(0, 0, 0));
-        tempShader->setVec3("PointLightColor[3]", glm::vec3(0, 0, 0));
     }
 
     //再随便给场景添加10个渲染组件

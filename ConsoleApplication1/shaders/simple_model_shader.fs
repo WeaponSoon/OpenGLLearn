@@ -52,7 +52,7 @@ float GetMetallic(vec2 InUV)
 
 vec3 GetAO(vec2 InUV)
 {
-	return texture(AO, InUV).rgb;
+	return texture(AO, InUV).rrr;
 }
 
 float CalcNDF(vec3 N, vec3 H, float roughness)

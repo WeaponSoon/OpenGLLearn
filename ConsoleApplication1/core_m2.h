@@ -1,6 +1,8 @@
 #pragma once
 #include <glad/glad.h> 
 
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <string>
 #include <fstream>
 #include <functional>

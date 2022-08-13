@@ -2,6 +2,7 @@
 #include "primitive_m2.h"
 #include "input_m2.h"
 #include "primitive_move_m2.h"
+#include "light_m2.h"
 
 FInputReceiver& FInputReceiver::GetInputReceiver()
 {
@@ -64,6 +65,8 @@ void FCameraComponent::DrawDeferred() const
 void FCameraComponent::Draw() const
 {
     std::vector<FRenderBatch> renderBatches;
+    std::vector<FLightRenderBatch> lights;
+
     auto safe_scene = scene.lock();
     auto&& allComponents = safe_scene->GetAllComponents();
     for (auto&& component : allComponents)
@@ -72,6 +75,14 @@ void FCameraComponent::Draw() const
         if (primitiveComponent)
         { 
             primitiveComponent->GenerateRenderBatch(renderBatches);
+        }
+        else
+        {
+            auto lightComponent = std::dynamic_pointer_cast<FLightComponent>(component);
+            if(lightComponent)
+            {
+                lightComponent->GetLightRenderBatch(lights);
+            }
         }
     }
     FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
@@ -84,6 +95,40 @@ void FCameraComponent::Draw() const
 
     for (auto&& renderBatch : renderBatches)
     {
+        renderBatch.Shader->setVec3("DirectionalLightDir", glm::vec3(1,0,0));
+        renderBatch.Shader->setVec3("DirectionalLightColor", glm::vec3(0,0,0));
+
+        for (int pointLightId = 0; pointLightId < 4; ++pointLightId)
+        {
+            renderBatch.Shader->setVec4(std::string("PointLightLocationAndRadius[") + std::to_string(pointLightId) + "]", glm::vec4(0,0,0,0));
+            renderBatch.Shader->setVec3(std::string("PointLightColor[") + std::to_string(pointLightId) + "]", glm::vec3(0,0,0));
+        }
+
+        renderBatch.Shader->setVec3("EnvLightColor", glm::vec3(0, 0, 0));
+
+        int pointLightNum = 0;
+        for(auto&& light : lights)
+        {
+	        switch (light.lightType)
+	        {
+	        case ELightType::LT_Directional: 
+                renderBatch.Shader->setVec3("DirectionalLightDir", -light.direction);
+                renderBatch.Shader->setVec3("DirectionalLightColor", light.color);
+                break;
+	        case ELightType::LT_Point:
+                if(pointLightNum < 4)
+                {
+                    renderBatch.Shader->setVec4(std::string("PointLightLocationAndRadius[") + std::to_string(pointLightNum) + "]", glm::vec4(light.location, light.radius));
+                    renderBatch.Shader->setVec3(std::string("PointLightColor[") + std::to_string(pointLightNum) + "]", light.color);
+                    ++pointLightNum;
+                }
+                break;
+	        case ELightType::LT_Env:
+                renderBatch.Shader->setVec3("EnvLightColor", light.color);
+                break;
+
+	        }
+        }
         renderBatch.Draw(std::static_pointer_cast<FCameraComponent>(((FCameraComponent*)this)->shared_from_this()));
     }
     glUseProgram(0);
