@@ -70,6 +70,22 @@ public:
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
+    glm::vec2 GetSize() const
+    {
+	    if(ID == GL_NONE)
+	    {
+            
+	    }
+        else
+        {
+            int w, h;
+            glBindTexture(GL_TEXTURE_2D, ID);
+            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+        	glBindTexture(GL_TEXTURE_2D, 0);
+            return glm::vec2(w, h);
+        }
+    }
 
     unsigned int ID;
 

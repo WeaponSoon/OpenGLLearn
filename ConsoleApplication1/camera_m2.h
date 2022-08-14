@@ -15,6 +15,9 @@ class FCameraComponent : public FSceneComponent
 {
 public:
 
+    std::set<std::shared_ptr<class FPrimitiveComponent>> ignorePrimitives;
+    std::set<std::shared_ptr<class FPrimitiveComponent>> renderOnlyPrimitives;
+
     class FDeferredDrawer
     {
         friend class FCameraComponent;

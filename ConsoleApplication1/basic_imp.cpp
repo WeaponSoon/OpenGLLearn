@@ -73,8 +73,21 @@ void FCameraComponent::Draw() const
     {
         auto primitiveComponent = std::dynamic_pointer_cast<FPrimitiveComponent>(component);
         if (primitiveComponent)
-        { 
-            primitiveComponent->GenerateRenderBatch(renderBatches);
+        {
+            if(renderOnlyPrimitives.size() == 0)
+            {
+                if (ignorePrimitives.find(primitiveComponent) == ignorePrimitives.end())
+                {
+                    primitiveComponent->GenerateRenderBatch(renderBatches);
+                }
+            }
+            else
+            {
+                if (renderOnlyPrimitives.find(primitiveComponent) != renderOnlyPrimitives.end())
+                {
+                    primitiveComponent->GenerateRenderBatch(renderBatches);
+                }
+            }
         }
         else
         {
@@ -87,6 +100,29 @@ void FCameraComponent::Draw() const
     }
     FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
     useFrameBuffer->Use();
+
+    bool bViewportSet = false;
+    if(!useFrameBuffer->IsEmpty())
+    {
+        if(useFrameBuffer->Color[0]->IsValid())
+        {
+            glm::vec2 viewportSize = useFrameBuffer->Color[0]->GetSize();
+            glViewport(0, 0, viewportSize.x, viewportSize.y);
+            bViewportSet = true;
+        }
+        else if(useFrameBuffer->Depth->IsValid())
+        {
+            glm::vec2 viewportSize = useFrameBuffer->Depth->GetSize();
+            glViewport(0, 0, viewportSize.x, viewportSize.y);
+            bViewportSet = true;
+        }
+    }
+    if(!bViewportSet)
+    {
+        int x, y;
+        glfwGetFramebufferSize(glfwGetCurrentContext(), &x, &y);
+        glViewport(0, 0, x, y);
+    }
 
     glm::vec4 clearColor = useFrameBuffer->clearColor;
 

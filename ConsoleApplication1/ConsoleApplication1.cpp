@@ -23,7 +23,6 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 
-
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -244,17 +243,8 @@ int main()
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
     cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
 
-    //创建一个FrameBuffer
-    FFrameBufferRef frameBuffer = std::make_shared<FFrameBuffer>(256, 256, 1, EFrameBufferColorFormat::FCF_RGBA);
-    frameBuffer->clearColor = glm::vec4(0.2, 0.5, 0.6, 1.0);//随便设置个清屏颜色
-
-    //创建一个渲染到图片的相机
-    FCameraRef sceneCapture = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
-    //渲染到刚才给的framebuffer
-    sceneCapture->frameBufferRef = frameBuffer;
-
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
-    tex[2] = frameBuffer->Color[0];
+    tex[2] = tex[0];//frameBuffer->Color[0];
 
      
     //创建一个渲染组件，作为场景的一个地面
@@ -271,7 +261,7 @@ int main()
     cameraFollower->GetShader(0)->SetTexture("texture1", tex[0]);
     cameraFollower->GetShader(0)->SetTexture("texture2", tex[1]);
     cameraFollower->GetShader(0)->setVec4("uniColor", 1, 1, 1, 1);
-    cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
+    //cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
     cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));  
 
 
