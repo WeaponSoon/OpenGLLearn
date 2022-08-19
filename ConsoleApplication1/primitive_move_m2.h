@@ -47,8 +47,8 @@ public:
             std::shared_ptr<FSimpleImputMoveComponentSubobject> safeThis = weakThis.lock();
             if (safeThis)
             {
-                float xoffset = curPosX - prePosX;
-                float yoffset = curPosY - prePosY;
+                float xoffset = static_cast<float>(curPosX - prePosX);
+                float yoffset = static_cast<float>(curPosY - prePosY);
                 xoffset *= 0.1f;
                 yoffset *= 0.1f;
 

@@ -106,14 +106,14 @@ void FCameraComponent::Draw() const
     {
         if(useFrameBuffer->Color[0]->IsValid())
         {
-            glm::vec2 viewportSize = useFrameBuffer->Color[0]->GetSize();
-            glViewport(0, 0, viewportSize.x, viewportSize.y);
+            const glm::vec2 viewportSize = useFrameBuffer->Color[0]->GetSize();
+            glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
             bViewportSet = true;
         }
         else if(useFrameBuffer->Depth->IsValid())
         {
-            glm::vec2 viewportSize = useFrameBuffer->Depth->GetSize();
-            glViewport(0, 0, viewportSize.x, viewportSize.y);
+            const glm::vec2 viewportSize = useFrameBuffer->Depth->GetSize();
+            glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
             bViewportSet = true;
         }
     }

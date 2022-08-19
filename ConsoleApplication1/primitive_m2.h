@@ -45,8 +45,8 @@ public:
 
     void SetData(const std::vector<char>& vertexData, const std::vector<unsigned int>& indicesData, const FPrimitiveVertexDesc& desc)
     {
-        numOfVertex = vertexData.size() / desc.structSize;
-        numOfIndices = indicesData.size();
+        numOfVertex = static_cast<int>(vertexData.size() / desc.structSize);
+        numOfIndices = static_cast<int>(indicesData.size());
 
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);

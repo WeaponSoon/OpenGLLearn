@@ -74,7 +74,7 @@ public:
     {
 	    if(ID == GL_NONE)
 	    {
-            
+            return {0, 0};
 	    }
         else
         {
@@ -83,7 +83,7 @@ public:
             glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
             glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
         	glBindTexture(GL_TEXTURE_2D, 0);
-            return glm::vec2(w, h);
+            return {w, h};
         }
     }
 
