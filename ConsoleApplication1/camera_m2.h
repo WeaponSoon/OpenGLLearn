@@ -15,6 +15,9 @@ class FCameraComponent : public FSceneComponent
 {
 public:
 
+    static std::shared_ptr<FShader> FinalShader;
+    static std::shared_ptr<class FPrimitive> FinalPrimitive;
+
     std::set<std::shared_ptr<class FPrimitiveComponent>> ignorePrimitives;
     std::set<std::shared_ptr<class FPrimitiveComponent>> renderOnlyPrimitives;
 
@@ -44,6 +47,12 @@ public:
     static FDeferredDrawer& GetDeferredCmds();
 
     FFrameBufferRef frameBufferRef;
+    FFrameBufferRef gBufferRef;
+    FFrameBufferRef gFlipBufferRefs[2];
+
+    bool bDeferredPipeline = false;
+
+    void AdjustGBuffer();
 
     bool bDrawEveryFrame = true;
 

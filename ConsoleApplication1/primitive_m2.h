@@ -106,6 +106,30 @@ public:
     FShaderRef Shader;
     glm::mat4 model;
 
+    void Draw_InputVP(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& cameraPos)
+    {
+        if (Primitive && Shader)
+        {
+            Shader->setMat4("projection", proj);
+            Shader->setMat4("view", view);
+            Shader->setMat4("model", model);
+            Shader->setVec3("cameraPos", cameraPos);
+            Shader->use();
+            Primitive->use();
+
+            if (Primitive->GetNumOfIndices() > 0)
+            {
+                glDrawElements(GL_TRIANGLES, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+            }
+            else
+            {
+                glDrawArrays(GL_TRIANGLES, 0, Primitive->GetNumOfVertex());
+            }
+
+            glBindVertexArray(0);
+            glUseProgram(0);
+        }
+    }
 
     void Draw(const FCameraRef& camera)
     {
@@ -129,6 +153,7 @@ public:
             }
 
             glBindVertexArray(0);
+            glUseProgram(0);
         }
     }
 };
