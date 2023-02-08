@@ -16,14 +16,16 @@ struct FLightRenderBatch
 	glm::vec3 location;
 	float radius;
 
-	std::shared_ptr<FTexture> shadowMap;
+	mutable std::vector<glm::mat4> worldToShadowProj;
+
+	std::shared_ptr<FFrameBuffer> shadowMap;
 	float lightmapDistance;
 	int numOfCSM;
 
-	FLightRenderBatch(ELightType inType, glm::vec3 inColor, glm::vec3 inDirection, glm::vec3 inLocation, float inRadius, std::shared_ptr<FTexture> inShadowMap, float inLightmapDistance, int inNumOfCSM) : lightType(inType), color(inColor), direction(inDirection), location(inLocation), radius(inRadius)
+	FLightRenderBatch(ELightType inType, glm::vec3 inColor, glm::vec3 inDirection, glm::vec3 inLocation, float inRadius, std::shared_ptr<FFrameBuffer> inShadowMap, float inLightmapDistance, int inNumOfCSM) : lightType(inType), color(inColor), direction(inDirection), location(inLocation), radius(inRadius)
 		, shadowMap(inShadowMap), lightmapDistance(inLightmapDistance), numOfCSM(inNumOfCSM)
 	{
-
+		worldToShadowProj.resize(numOfCSM);
 	}
 };
 
@@ -66,7 +68,7 @@ class FDirectionalLightComponent : public FLightComponent
 	int baseShadowMapSize;
 	int numOfCSM;
 	float lightmapDistance;
-	std::shared_ptr<FTexture> shadowMap;
+	std::shared_ptr<FFrameBuffer> shadowMap;
 	int GetShadowMapWidth() const
 	{
 		return baseShadowMapSize * numOfCSM;
@@ -89,12 +91,12 @@ public:
 		{
 			baseShadowMapSize = needBaseShadowMapSize;
 			numOfCSM = needNumOfCSM;
-			shadowMap = std::make_shared<FTexture>(baseShadowMapSize, GetShadowMapWidth(), ETexturePixelFormat::TPF_D24S8);
+			shadowMap = std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(),0,EFrameBufferColorFormat::FCF_RGBA);
 		}
 	}
 
 	FDirectionalLightComponent(glm::vec3 inLightColor, glm::quat inRotation) : FLightComponent(inLightColor), baseShadowMapSize(1024), numOfCSM(1), lightmapDistance(100.f)
-		, shadowMap(std::make_shared<FTexture>(baseShadowMapSize, GetShadowMapWidth(), ETexturePixelFormat::TPF_D24S8))
+		, shadowMap(std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA))
 	{
 		SetWorldTransform(glm::mat4_cast(inRotation));
 	}

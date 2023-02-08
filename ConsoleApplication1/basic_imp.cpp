@@ -178,13 +178,10 @@ void FCameraComponent::Draw() const
     {
         const_cast<FCameraComponent*>(this)->AdjustGBuffer();
 
-        gBufferRef->Use();
-        glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
-        glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        
 
     	//draw shadow maps
-#if 0
+#if 1
         for (auto&& light : lights)
         {
             switch (light.lightType)
@@ -192,12 +189,18 @@ void FCameraComponent::Draw() const
             case ELightType::LT_Directional:
                 if(light.shadowMap)
                 {
+                    light.shadowMap->Use();
+                    auto shadowMapSize = light.shadowMap->Depth->GetSize();
+                    glViewport(0, 0, shadowMapSize.x, shadowMapSize.y);
+                	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+                    glEnable(GL_DEPTH_TEST);
                     float zoomInRadius = glm::radians(Zoom);
                     float tanHalfZoom = glm::tan(zoomInRadius / 2.0f);
                     auto bufferSize = gBufferRef->Color[0]->GetSize();
                     float aspectRatio = bufferSize.x / bufferSize.y;
                     for(int CSMIndex = 0; CSMIndex < light.numOfCSM; ++CSMIndex)
                     {
+                        glViewport(0, 0, shadowMapSize.x, shadowMapSize.x * (CSMIndex+1));
                         float CSMInnerFarPlane = ((CSMIndex + 1) / (float)light.numOfCSM) * light.lightmapDistance;
                         float CSMInnerNearPlane = ((CSMIndex) / (float)light.numOfCSM) * light.lightmapDistance;
 
@@ -206,8 +209,8 @@ void FCameraComponent::Draw() const
                         float lHalfLength = (CSMInnerFarPlane - CSMInnerNearPlane) / 2;
                         float CSMRadius = glm::sqrt(lhalfHight * lhalfHight + lhalfWidth * lhalfWidth + lHalfLength * lHalfLength);
 
-
-                        glm::vec3 shadowCasterPos = GetWorldLocation() + GetFowardInWorldSpace() * (CSMInnerNearPlane + CSMInnerFarPlane) * 0.5f - light.direction * 1000.0f;
+                         
+                        glm::vec3 shadowCasterPos = GetWorldLocation() + GetFowardInWorldSpace() * (CSMInnerNearPlane + CSMInnerFarPlane) * 0.5f - light.direction * 500.0f;
                         glm::vec3 shadowCasterUp = glm::vec3(0, 1, 0);
                         if(glm::abs(glm::abs(dot(light.direction, shadowCasterUp))-1.0f) < 0.05f)
                         {
@@ -215,7 +218,9 @@ void FCameraComponent::Draw() const
                         }
 
                         glm::mat4 casterView = glm::lookAt(shadowCasterPos, shadowCasterPos + light.direction, shadowCasterUp);
-                        glm::mat4 proj = glm::ortho(-CSMRadius, CSMRadius, -CSMRadius, CSMRadius);
+                        glm::mat4 proj = glm::ortho(-CSMRadius, CSMRadius, -CSMRadius, CSMRadius, 1.0f, 1000.0f);
+
+                        light.worldToShadowProj[CSMIndex] =proj * casterView;
 
                         for (auto&& primitve : renderBatches)
                         {
@@ -233,6 +238,12 @@ void FCameraComponent::Draw() const
             }
         }
 #endif
+
+        gBufferRef->Use();
+        glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
+        glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
         //draw g-buffer
         for(auto&& renderBatch : renderBatches)
         {
@@ -267,7 +278,7 @@ void FCameraComponent::Draw() const
                 {
                     FDirectionalLightComponent::DirectionalLightDeferredGeo = std::make_shared<FPrimitive>();
 
-                    float geoDatas[] = {
+                    float geoDatas[] = { 
                         -1.0f, 1.0f, -0.5f,
                         -1.0f, -1.0f,-0.5f,
                         1.0f, -1.0f,-0.5f,
@@ -290,6 +301,12 @@ void FCameraComponent::Draw() const
                     FDirectionalLightComponent::DirectionalLightDeferredGeo->SetData(vertex, index, desc);
                 }
                 FDirectionalLightComponent::DirectionalLightDeferredShader->use();
+                FDirectionalLightComponent::DirectionalLightDeferredShader->setInt("numOfCSM", light.numOfCSM);
+                FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("shadowMapCSM", light.shadowMap->Depth);
+                for(int CSMIdx = 0; CSMIdx < light.numOfCSM; ++CSMIdx)
+                {
+                    FDirectionalLightComponent::DirectionalLightDeferredShader->setMat4(std::string("worldToShadowViewProj[") + std::to_string(CSMIdx) + "]", light.worldToShadowProj[CSMIdx]);
+                }
                 FDirectionalLightComponent::DirectionalLightDeferredGeo->use();
 
                 FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("gWorldPosMetallic", gBufferRef->Color[1]);

@@ -231,7 +231,7 @@ int main()
     memcpy(indices.data(), groundIndices, indices.size());
     ground->SetData(vertexData, indices, vertexDesc);
 
-    //创建一个Shader作为模板
+    //创建一个Shader作为模板 
     FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
     //加载俩贴图
@@ -245,13 +245,13 @@ int main()
     cameraComp->bDeferredPipeline = true;
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
-
+      
      
     //创建一个渲染组件，作为场景的一个地面
     auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
     groundComponent->AddPrimitiveUnit(ground, std::make_shared<FShader>(*ourShader));//地面用那个大一点的平面模型，方便起见用ourShader作为模板复制一份出来
 
-    groundComponent->GetShader(0)->SetTexture("Emissive", tex[1]);
+    groundComponent->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
     groundComponent->GetShader(0)->SetTexture("Albedo", tex[0]);
     groundComponent->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
     groundComponent->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());

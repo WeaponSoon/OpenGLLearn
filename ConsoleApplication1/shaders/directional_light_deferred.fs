@@ -16,6 +16,10 @@ uniform sampler2D gWorldPosMetallic;
 uniform sampler2D gAlbedoSpec;
 uniform sampler2D gWorldNormalRoughness;
 
+uniform sampler2D shadowMapCSM;
+uniform int numOfCSM;
+uniform mat4 worldToShadowViewProj[4];
+
 
 const float PI = 3.14159265359;
 const float InvPI = 0.3183098862;
@@ -137,7 +141,20 @@ void main()
 
 		calColor = (kD * albedo * InvPI + specularPart) * LC * max(dot(WorldNormal, L),0.0);
 	}
+	float shadowScalar = 1;
+	for(int CSMIdx = 0; CSMIdx < numOfCSM; ++CSMIdx)
+	{
+		vec4 shadowUV = worldToShadowViewProj[CSMIdx] * vec4(WorldPosition,1.0);
+		shadowUV = shadowUV / shadowUV.w;
+		vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
+		if(csmUV.x > 0 && csmUV.x < 1
+			&& csmUV.y > 0 && csmUV.y < 1)
+		{
+			vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/numOfCSM) + vec2(0.0, CSMIdx * 1.0/numOfCSM);
+			shadowScalar = shadowUV.z > texture(shadowMapCSM, resoveCSMUV).r ? 1 : 0;
+		}
+	}
 
-	vec3 finalColor = (calColor);// * specular + EnvLightColor * albedo * ao);
+	vec3 finalColor = (calColor * shadowScalar);// * specular + EnvLightColor * albedo * ao);
 	FragColor = vec4(GetLastColor(uv) + finalColor, 1);// pow(vec4(finalColor/(finalColor + vec3(1)), 1), vec4(1.0/2.2));
 }
