@@ -17,8 +17,91 @@ enum class ECullMethod
     CM_CullFrontAndBack
 };
 
+enum class EBlendMethod
+{
+	BM_NoBlend,
+    BM_Translucent,
+    BM_Additive,
+};
+
 class FShader
 {
+    class FInternalShader
+    {
+        
+
+    public:
+        bool bValid = false;
+        unsigned int vertexShader = GL_NONE;
+        unsigned int fragmentShader = GL_NONE;
+        FInternalShader() = default;
+        FInternalShader(const FInternalShader&) = delete;
+        FInternalShader(FInternalShader&&) = delete;
+        FInternalShader& operator=(FInternalShader&) = delete;
+        ~FInternalShader()
+        {
+            glDeleteShader(vertexShader);
+            glDeleteShader(fragmentShader);
+        }
+        void InitFromFile(const char* vertexPath, const char* fragmentPath)
+        {
+            std::string vertexCode;
+            std::string fragmentCode;
+            std::ifstream vShaderFile;
+            std::ifstream fShaderFile;
+            // ensure ifstream objects can throw exceptions:
+            vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+            fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+            try
+            {
+                // open files
+                vShaderFile.open(vertexPath);
+                fShaderFile.open(fragmentPath);
+                std::stringstream vShaderStream, fShaderStream;
+                // read file's buffer contents into streams
+                vShaderStream << vShaderFile.rdbuf();
+                fShaderStream << fShaderFile.rdbuf();
+                // close file handlers
+                vShaderFile.close();
+                fShaderFile.close();
+                // convert stream into string
+                vertexCode = vShaderStream.str();
+                fragmentCode = fShaderStream.str();
+            }
+            catch (std::ifstream::failure& e)
+            {
+                std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << e.what() << std::endl;
+                return;
+            }
+            const char* vShaderCode = vertexCode.c_str();
+            const char* fShaderCode = fragmentCode.c_str();
+            // 2. compile shaders
+            
+            // vertex shader
+            vertexShader = glCreateShader(GL_VERTEX_SHADER);
+            glShaderSource(vertexShader, 1, &vShaderCode, NULL);
+            glCompileShader(vertexShader);
+
+            if(!checkCompileErrors(vertexShader, "VERTEX"))
+            {
+                glDeleteShader(vertexShader);
+                vertexShader = GL_NONE;
+                return;
+            }
+            // fragment Shader
+            fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(fragmentShader, 1, &fShaderCode, NULL);
+            glCompileShader(fragmentShader);
+            if(!checkCompileErrors(fragmentShader, "FRAGMENT"))
+            {
+                glDeleteShader(fragmentShader);
+                fragmentShader = GL_NONE;
+                return;
+            }
+            bValid = true;
+        }
+    };
+
     friend class FCameraComponent;
     friend class FRenderBatch;
 
@@ -39,6 +122,8 @@ class FShader
     std::map<std::string, glm::mat3> mat3Map;
     std::map<std::string, glm::mat4> mat4Map;
     ECullMethod cullMethod = ECullMethod::CM_CullBack;
+    EBlendMethod blendMothed = EBlendMethod::BM_NoBlend;
+
 
     void ApplyCullMethod() const
     {
@@ -61,6 +146,25 @@ class FShader
             break;
 	    }
     }
+
+    void ApplyBlendMethod() const
+    {
+	    switch (blendMothed)
+	    {
+	    case EBlendMethod::BM_Additive:
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);
+            break;
+	    case EBlendMethod::BM_Translucent:
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+	    case EBlendMethod::BM_NoBlend:
+            glDisable(GL_BLEND);
+            break;
+	    }
+    }
+
     bool IsUsing() const
     {
         GLint currentProgram = GL_NONE;
@@ -75,7 +179,7 @@ class FShader
         glUseProgram(ID);
 
         ApplyCullMethod();
-
+        ApplyBlendMethod();
         {
             for (auto&& pair : textureMap)
             {
@@ -87,7 +191,7 @@ class FShader
                 }
             }
         }
-
+        
 
         for (auto&& pair : boolMap)
         {
@@ -134,6 +238,9 @@ class FShader
             glUniformMatrix4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
         }
     }
+
+    std::shared_ptr<FInternalShader> internalShader;
+
 public:
     unsigned int ID;
 
@@ -141,70 +248,58 @@ public:
     {
         return ID;
     }
+
+    
+
+    FShader(const FShader& otherShader) : textureSlot(otherShader.textureSlot),
+        textureMap(otherShader.textureMap),
+		boolMap(otherShader.boolMap),
+		intMap(otherShader.intMap),
+		floatMap(otherShader.floatMap),
+		vec2Map(otherShader.vec2Map),
+		vec3Map(otherShader.vec3Map),
+		vec4Map(otherShader.vec4Map),
+		mat2Map(otherShader.mat2Map),
+		mat3Map(otherShader.mat3Map),
+		mat4Map(otherShader.mat4Map),
+		internalShader(otherShader.internalShader),
+		ID(GL_NONE)
+    {
+	    if(internalShader->bValid)
+	    {
+            ID = glCreateProgram();
+            glAttachShader(ID, internalShader->vertexShader);
+            glAttachShader(ID, internalShader->fragmentShader);
+            glLinkProgram(ID);
+            if (!checkCompileErrors(ID, "PROGRAM"))
+            {
+                glDeleteProgram(ID);
+                ID = GL_NONE;
+                return;
+            }
+	    }
+    }
+
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
-    FShader(const char* vertexPath, const char* fragmentPath) : ID(GL_NONE)
+    FShader(const char* vertexPath, const char* fragmentPath) : internalShader(std::make_shared<FInternalShader>()), ID(GL_NONE)
     {
-        // 1. retrieve the vertex/fragment source code from filePath
-        std::string vertexCode;
-        std::string fragmentCode;
-        std::ifstream vShaderFile;
-        std::ifstream fShaderFile;
-        // ensure ifstream objects can throw exceptions:
-        vShaderFile.exceptions (std::ifstream::failbit | std::ifstream::badbit);
-        fShaderFile.exceptions (std::ifstream::failbit | std::ifstream::badbit);
-        try 
+
+        internalShader->InitFromFile(vertexPath, fragmentPath);
+        if(internalShader->bValid)
         {
-            // open files
-            vShaderFile.open(vertexPath);
-            fShaderFile.open(fragmentPath);
-            std::stringstream vShaderStream, fShaderStream;
-            // read file's buffer contents into streams
-            vShaderStream << vShaderFile.rdbuf();
-            fShaderStream << fShaderFile.rdbuf();		
-            // close file handlers
-            vShaderFile.close();
-            fShaderFile.close();
-            // convert stream into string
-            vertexCode = vShaderStream.str();
-            fragmentCode = fShaderStream.str();			
+            ID = glCreateProgram();
+            glAttachShader(ID, internalShader->vertexShader);
+            glAttachShader(ID, internalShader->fragmentShader);
+            glLinkProgram(ID);
+            if (!checkCompileErrors(ID, "PROGRAM"))
+            {
+                glDeleteProgram(ID);
+                ID = GL_NONE;
+                return;
+            }
         }
-        catch (std::ifstream::failure& e)
-        {
-            std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << e.what() << std::endl;
-            return;
-        }
-        const char* vShaderCode = vertexCode.c_str();
-        const char * fShaderCode = fragmentCode.c_str();
-        // 2. compile shaders
-        unsigned int vertex, fragment;
-        // vertex shader
-        vertex = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertex, 1, &vShaderCode, NULL);
-        glCompileShader(vertex);
-        checkCompileErrors(vertex, "VERTEX");
-        // fragment Shader
-        fragment = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragment, 1, &fShaderCode, NULL);
-        glCompileShader(fragment);
-        checkCompileErrors(fragment, "FRAGMENT");
         // shader Program
-        ID = glCreateProgram();
-        glAttachShader(ID, vertex);
-        glAttachShader(ID, fragment);
-        glLinkProgram(ID);
-        if(!checkCompileErrors(ID, "PROGRAM"))
-        {
-            glDeleteShader(vertex);
-            glDeleteShader(fragment);
-            glDeleteProgram(ID);
-            ID = GL_NONE;
-            return;
-        }
-        // delete the shaders as they're linked into our program now and no longer necessery
-        glDeleteShader(vertex);
-        glDeleteShader(fragment);
-        
     }
 
     
@@ -228,6 +323,15 @@ public:
         if(IsUsing())
         {
             ApplyCullMethod();
+        }
+    }
+
+    void SetBlendMethod(EBlendMethod inMethod)
+    {
+        blendMothed = inMethod;
+        if(IsUsing())
+        {
+            ApplyBlendMethod();
         }
     }
 
@@ -412,7 +516,7 @@ public:
 private:
     // utility function for checking shader compilation/linking errors.
     // ------------------------------------------------------------------------
-    bool checkCompileErrors(GLuint shader, std::string type)
+    bool static checkCompileErrors(GLuint shader, std::string type)
     {
         GLint success;
         GLchar infoLog[1024];

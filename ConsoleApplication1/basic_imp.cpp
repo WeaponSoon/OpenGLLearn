@@ -10,6 +10,9 @@ std::shared_ptr<FPrimitive> FDirectionalLightComponent::DirectionalLightDeferred
 std::shared_ptr<FShader> FEnvLightComponent::EnvLightDeferredShader;
 std::shared_ptr<FPrimitive> FEnvLightComponent::EnvLightDeferredGeo;
 
+std::shared_ptr<FShader> FPointLightComponent::PointLightDeferredShader;
+std::shared_ptr<FPrimitive> FPointLightComponent::PointLightDeferredGeo;
+
 std::shared_ptr<FShader> FCameraComponent::FinalShader;
 std::shared_ptr<FPrimitive> FCameraComponent::FinalPrimitive;
 
@@ -241,54 +244,118 @@ void FCameraComponent::Draw() const
         glUseProgram(0);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        gFlipBufferRefs[0]->Use();
+        if (!FDirectionalLightComponent::DirectionalLightDeferredShader)
+        {
+            FDirectionalLightComponent::DirectionalLightDeferredShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/directional_light_deferred.fs");
+            FDirectionalLightComponent::DirectionalLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+        }
+        if (!FDirectionalLightComponent::DirectionalLightDeferredGeo)
+        {
+            FDirectionalLightComponent::DirectionalLightDeferredGeo = std::make_shared<FPrimitive>();
+
+            float geoDatas[] = {
+                -1.0f, 1.0f, -0.5f,
+                -1.0f, -1.0f,-0.5f,
+                1.0f, -1.0f,-0.5f,
+                1.0f, 1.0f, -0.5f
+            };
+
+            std::vector<char> vertex;
+            vertex.resize(sizeof(geoDatas));
+            memcpy(vertex.data(), geoDatas, vertex.size());
+
+            std::vector<unsigned int> index = {
+                0, 1, 2, 0, 2, 3
+            };
+
+            FPrimitiveVertexDesc desc;
+            desc.structSize = 3 * sizeof(float);
+            FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+            desc.props.push_back(prop);
+
+            FDirectionalLightComponent::DirectionalLightDeferredGeo->SetData(vertex, index, desc);
+        }
+
+        if (!FEnvLightComponent::EnvLightDeferredGeo)
+        {
+            FEnvLightComponent::EnvLightDeferredGeo = std::make_shared<FPrimitive>();
+
+            float geoDatas[] = {
+                -1.0f, 1.0f, -0.5f,
+                -1.0f, -1.0f,-0.5f,
+                1.0f, -1.0f,-0.5f,
+                1.0f, 1.0f, -0.5f
+            };
+
+            std::vector<char> vertex;
+            vertex.resize(sizeof(geoDatas));
+            memcpy(vertex.data(), geoDatas, vertex.size());
+
+            std::vector<unsigned int> index = {
+                0, 1, 2, 0, 2, 3
+            };
+
+            FPrimitiveVertexDesc desc;
+            desc.structSize = 3 * sizeof(float);
+            FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+            desc.props.push_back(prop);
+
+            FEnvLightComponent::EnvLightDeferredGeo->SetData(vertex, index, desc);
+        }
+        if (!FEnvLightComponent::EnvLightDeferredShader)
+        {
+            FEnvLightComponent::EnvLightDeferredShader = std::make_shared<FShader>("./shaders/env_light_deferred.vs", "./shaders/env_light_deferred.fs");
+            FEnvLightComponent::EnvLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+        }
+
+        if (!FPointLightComponent::PointLightDeferredGeo)
+        {
+            FPointLightComponent::PointLightDeferredGeo = std::make_shared<FPrimitive>();
+
+            float geoDatas[] = {
+                -1.0f, 1.0f, -0.5f,
+                -1.0f, -1.0f,-0.5f,
+                1.0f, -1.0f,-0.5f,
+                1.0f, 1.0f, -0.5f
+            };
+
+            std::vector<char> vertex;
+            vertex.resize(sizeof(geoDatas));
+            memcpy(vertex.data(), geoDatas, vertex.size());
+
+            std::vector<unsigned int> index = {
+                0, 1, 2, 0, 2, 3
+            };
+
+            FPrimitiveVertexDesc desc;
+            desc.structSize = 3 * sizeof(float);
+            FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+            desc.props.push_back(prop);
+
+            FPointLightComponent::PointLightDeferredGeo->SetData(vertex, index, desc);
+        }
+        if (!FPointLightComponent::PointLightDeferredShader)
+        {
+            FPointLightComponent::PointLightDeferredShader = std::make_shared<FShader>("./shaders/point_light_deferred.vs", "./shaders/point_light_deferred.fs");
+            FPointLightComponent::PointLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+        }
+
+
+    	gFlipBufferRefs[0]->Use();
         glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-        gFlipBufferRefs[1]->Use();
-        glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     	glDisable(GL_DEPTH_TEST);
-        int curFlipBufferIndex = 0;
+        //int curFlipBufferIndex = 0;
         //draw lights;
+        gFlipBufferRefs[0]->Use();
         for (auto&& light : lights)
         {
             switch (light.lightType)
             {
             case ELightType::LT_Directional:
 	            {
-                if (!FDirectionalLightComponent::DirectionalLightDeferredShader)
-                {
-                    FDirectionalLightComponent::DirectionalLightDeferredShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/directional_light_deferred.fs");
-                    
-                }
-                if (!FDirectionalLightComponent::DirectionalLightDeferredGeo)
-                {
-                    FDirectionalLightComponent::DirectionalLightDeferredGeo = std::make_shared<FPrimitive>();
 
-                    float geoDatas[] = {
-                        -1.0f, 1.0f, -0.5f,
-                        -1.0f, -1.0f,-0.5f,
-                        1.0f, -1.0f,-0.5f,
-                        1.0f, 1.0f, -0.5f
-                    };
-
-                    std::vector<char> vertex;
-                    vertex.resize(sizeof(geoDatas));
-                    memcpy(vertex.data(), geoDatas, vertex.size());
-
-                    std::vector<unsigned int> index = {
-                        0, 1, 2, 0, 2, 3
-                    };
-
-                    FPrimitiveVertexDesc desc;
-                    desc.structSize = 3 * sizeof(float);
-                    FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
-                    desc.props.push_back(prop);
-
-                    FDirectionalLightComponent::DirectionalLightDeferredGeo->SetData(vertex, index, desc);
-                }
                 FDirectionalLightComponent::DirectionalLightDeferredShader->use();
                 FDirectionalLightComponent::DirectionalLightDeferredGeo->use();
 
@@ -299,64 +366,37 @@ void FCameraComponent::Draw() const
                 FDirectionalLightComponent::DirectionalLightDeferredShader->setVec3("DirectionalLightColor", light.color);
                 FDirectionalLightComponent::DirectionalLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
 
-                int lastFlipBuffer = (curFlipBufferIndex + 1) % 2;
-                gFlipBufferRefs[curFlipBufferIndex]->Use();
-                glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-                FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("gLastColor", gFlipBufferRefs[lastFlipBuffer]->Color[0]);
-
                 glDrawElements(GL_TRIANGLES, FDirectionalLightComponent::DirectionalLightDeferredGeo->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
 
                 glBindVertexArray(0);
                 glUseProgram(0);
-                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                
 
-                curFlipBufferIndex = lastFlipBuffer;
+                //curFlipBufferIndex = lastFlipBuffer;
                 break;
 	            }
             case ELightType::LT_Point:
-                
+
+                FPointLightComponent::PointLightDeferredShader->use();
+                FPointLightComponent::PointLightDeferredGeo->use();
+
+                FPointLightComponent::PointLightDeferredShader->SetTexture("gWorldPosMetallic", gBufferRef->Color[1]);
+                FPointLightComponent::PointLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
+                FPointLightComponent::PointLightDeferredShader->SetTexture("gWorldNormalRoughness", gBufferRef->Color[3]);
+                FPointLightComponent::PointLightDeferredShader->setVec3("PointLightParams", light.direction);
+                FPointLightComponent::PointLightDeferredShader->setVec3("PointLightColor", light.color);
+                FPointLightComponent::PointLightDeferredShader->setVec3("PointLightPosition", light.location);
+                FPointLightComponent::PointLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
+
+            	glDrawElements(GL_TRIANGLES, FPointLightComponent::PointLightDeferredGeo->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+
+                glBindVertexArray(0);
+                glUseProgram(0);
                 break;
             case ELightType::LT_Env:
-                if(!FEnvLightComponent::EnvLightDeferredGeo)
-                {
-                    FEnvLightComponent::EnvLightDeferredGeo = std::make_shared<FPrimitive>();
-
-                    float geoDatas[] = {
-                        -1.0f, 1.0f, -0.5f,
-                        -1.0f, -1.0f,-0.5f,
-                        1.0f, -1.0f,-0.5f,
-                        1.0f, 1.0f, -0.5f
-                    };
-
-                    std::vector<char> vertex;
-                    vertex.resize(sizeof(geoDatas));
-                    memcpy(vertex.data(), geoDatas, vertex.size());
-
-                    std::vector<unsigned int> index = {
-                        0, 1, 2, 0, 2, 3
-                    };
-
-                    FPrimitiveVertexDesc desc;
-                    desc.structSize = 3 * sizeof(float);
-                    FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
-                    desc.props.push_back(prop);
-
-                    FEnvLightComponent::EnvLightDeferredGeo->SetData(vertex, index, desc);
-                }
-                if(!FEnvLightComponent::EnvLightDeferredShader)
-                {
-                    FEnvLightComponent::EnvLightDeferredShader = std::make_shared<FShader>("./shaders/env_light_deferred.vs", "./shaders/env_light_deferred.fs");
-                }
             {
-
-                    int lastFlipBuffer = (curFlipBufferIndex + 1) % 2;
-                    gFlipBufferRefs[curFlipBufferIndex]->Use();
-                    glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
-                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
                     FEnvLightComponent::EnvLightDeferredShader->SetTexture("gEmissiveAO", gBufferRef->Color[0]);
                     FEnvLightComponent::EnvLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
-            		FEnvLightComponent::EnvLightDeferredShader->SetTexture("gLastColor", gFlipBufferRefs[lastFlipBuffer]->Color[0]);
                     FEnvLightComponent::EnvLightDeferredShader->setVec3("EnvLightColor", light.color);
                     FEnvLightComponent::EnvLightDeferredShader->use();
             		FEnvLightComponent::EnvLightDeferredGeo->use();
@@ -365,16 +405,14 @@ void FCameraComponent::Draw() const
 
                     glBindVertexArray(0);
                     glUseProgram(0);
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-                    curFlipBufferIndex = lastFlipBuffer;
-
             }
 
                 break;
 
             }
         }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         useFrameBuffer->Use();
         
@@ -415,7 +453,7 @@ void FCameraComponent::Draw() const
         FinalShader->use();
         FinalPrimitive->use();
 
-        FinalShader->SetTexture("sceneColor", gFlipBufferRefs[(curFlipBufferIndex + 1) % 2]->Color[0]);
+        FinalShader->SetTexture("sceneColor", gFlipBufferRefs[0]->Color[0]);
 
         glDrawElements(GL_TRIANGLES, FinalPrimitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
 

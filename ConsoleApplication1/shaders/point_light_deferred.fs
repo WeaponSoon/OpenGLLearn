@@ -4,8 +4,9 @@ in vec2 uv;
 
 out vec4 FragColor;
 
-uniform vec3 DirectionalLightDir;
-uniform vec3 DirectionalLightColor;
+uniform highp vec3 PointLightPosition;
+uniform vec3 PointLightColor;
+uniform vec3 PointLightParams;
 
 uniform highp vec3 cameraPos;
 
@@ -114,10 +115,13 @@ void main()
 	vec3 calColor;
 	//directional light
 	{
+		vec3 L_Un = PointLightPosition - WorldPosition;
+		highp float L_SqrDis = dot(L_Un, L_Un);
+		highp float L_Dis = sqrt(L_SqrDis);
 		//in comming
-		vec3 L = DirectionalLightDir;
+		vec3 L = normalize(L_Un);// PointLightPosition - WorldPosition;// DirectionalLightDir;
 		vec3 H = normalize(viewDir + L);
-		vec3 LC = DirectionalLightColor;
+		vec3 LC = PointLightColor * max(0, dot(PointLightParams, vec3(L_SqrDis, L_Dis,1)));
 
 		float D = CalcNDF(WorldNormal, H, roughness);
 		float G = CalcGeometryOcculicionBothDirection(WorldNormal, viewDir, L, roughness);
