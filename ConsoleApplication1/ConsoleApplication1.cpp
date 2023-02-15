@@ -267,11 +267,11 @@ int main()
     cameraFollower->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
     cameraFollower->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
     cameraFollower->GetShader(0)->SetTexture("AO", FTexture::GetWhite());
-	cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
+	//cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
     cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));  
 
-    auto cameraFollowPointLight = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(1,0,0), glm::vec3(0), glm::vec3(-0.03,0,1));
-    cameraFollowPointLight->AttachTo(cameraComp, EAttachRule::AR_SnapToTarget);
+    /*auto cameraFollowPointLight = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(1,0,0), glm::vec3(0), glm::vec3(-0.03,0,1));
+    cameraFollowPointLight->AttachTo(cameraComp, EAttachRule::AR_SnapToTarget);*/
 
 
     FTextureRef pbrtex[5];
