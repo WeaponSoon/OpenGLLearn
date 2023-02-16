@@ -4,8 +4,9 @@ in vec2 uv;
 
 out vec4 FragColor;
 
-uniform vec3 DirectionalLightDir;
-uniform vec3 DirectionalLightColor;
+uniform highp vec3 PointLightPosition;
+uniform vec3 PointLightColor;
+uniform vec3 PointLightParams;
 
 uniform highp vec3 cameraPos;
 
@@ -16,9 +17,6 @@ uniform sampler2D gWorldPosMetallic;
 uniform sampler2D gAlbedoSpec;
 uniform sampler2D gWorldNormalRoughness;
 
-uniform sampler2D shadowMapCSM;
-uniform int numOfCSM;
-uniform mat4 worldToShadowViewProj[4];
 
 const float PI = 3.14159265359;
 const float InvPI = 0.3183098862;
@@ -117,27 +115,13 @@ void main()
 	vec3 calColor;
 	//directional light
 	{
-
-		float shadowScalar = 1.0;
-		for(int CSMIdx = 0; CSMIdx < numOfCSM; ++CSMIdx)
-		{
-			vec4 shadowUV = worldToShadowViewProj[CSMIdx] * vec4(WorldPosition,1.0);
-			shadowUV = shadowUV / shadowUV.w;
-			vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
-			if(csmUV.x > 0.0 && csmUV.x < 1.0
-				&& csmUV.y > 0.0 && csmUV.y < 1.0)
-			{
-				float fCsmIdx = float(CSMIdx);
-				float fNumOfCSM = float(numOfCSM);
-				vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/fNumOfCSM) + vec2(0.0, fCsmIdx * 1.0/fNumOfCSM);
-				shadowScalar = shadowUV.z * 0.5 + 0.47f < texture(shadowMapCSM, resoveCSMUV).r ? 1.0 : 0.0;
-			}
-		}	
-
+		vec3 L_Un = PointLightPosition - WorldPosition;
+		highp float L_SqrDis = dot(L_Un, L_Un);
+		highp float L_Dis = sqrt(L_SqrDis);
 		//in comming
-		vec3 L = DirectionalLightDir;
+		vec3 L = normalize(L_Un);// PointLightPosition - WorldPosition;// DirectionalLightDir;
 		vec3 H = normalize(viewDir + L);
-		vec3 LC = DirectionalLightColor;
+		vec3 LC = PointLightColor * max(0, dot(PointLightParams, vec3(L_SqrDis, L_Dis,1)));
 
 		float D = CalcNDF(WorldNormal, H, roughness);
 		float G = CalcGeometryOcculicionBothDirection(WorldNormal, viewDir, L, roughness);
@@ -150,10 +134,8 @@ void main()
 		vec3 kS = F;
 		vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
-		calColor = (kD * albedo * InvPI + specularPart) * LC * min(max(dot(WorldNormal, L),0.0), shadowScalar);
+		calColor = (kD * albedo * InvPI + specularPart) * LC * max(dot(WorldNormal, L),0.0);
 	}
-
-	
 
 	vec3 finalColor = (calColor);// * specular + EnvLightColor * albedo * ao);
 	FragColor = vec4(finalColor, 1);// pow(vec4(finalColor/(finalColor + vec3(1)), 1), vec4(1.0/2.2));

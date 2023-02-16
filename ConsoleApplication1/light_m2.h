@@ -17,8 +17,8 @@ struct FLightRenderBatch
 	float radius;
 
 	mutable std::vector<glm::mat4> worldToShadowProj;
-
 	std::shared_ptr<FFrameBuffer> shadowMap;
+
 	float lightmapDistance;
 	int numOfCSM;
 
@@ -91,11 +91,11 @@ public:
 		{
 			baseShadowMapSize = needBaseShadowMapSize;
 			numOfCSM = needNumOfCSM;
-			shadowMap = std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(),0,EFrameBufferColorFormat::FCF_RGBA);
+			shadowMap = std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA);
 		}
 	}
 
-	FDirectionalLightComponent(glm::vec3 inLightColor, glm::quat inRotation) : FLightComponent(inLightColor), baseShadowMapSize(1024), numOfCSM(1), lightmapDistance(100.f)
+	FDirectionalLightComponent(glm::vec3 inLightColor, glm::quat inRotation) : FLightComponent(inLightColor), baseShadowMapSize(1024), numOfCSM(1), lightmapDistance(10.f)
 		, shadowMap(std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA))
 	{
 		SetWorldTransform(glm::mat4_cast(inRotation));
@@ -110,15 +110,19 @@ public:
 class FPointLightComponent : public FLightComponent
 {
 public:
-	float radius;
 
-	FPointLightComponent(glm::vec3 inLightColor, glm::vec3 inLightLocation, float inRadius) : FLightComponent(inLightColor), radius(inRadius)
+	static std::shared_ptr<FShader> PointLightDeferredShader;
+	static std::shared_ptr<FPrimitive> PointLightDeferredGeo;
+
+	glm::vec3 pointLightParam;
+
+	FPointLightComponent(glm::vec3 inLightColor, glm::vec3 inLightLocation, glm::vec3 inPointLightParam) : FLightComponent(inLightColor), pointLightParam(inPointLightParam)
 	{
 		SetWorldLocation(inLightLocation);
 	}
 
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
 	{
-		outElement.emplace_back(ELightType::LT_Point, lightColor, GetFowardInWorldSpace(), GetWorldLocation(), radius, nullptr, 100.f,1);
+		outElement.emplace_back(ELightType::LT_Point, lightColor, pointLightParam, GetWorldLocation(), 0.0f, nullptr, 100.f,1);
 	}
 };
