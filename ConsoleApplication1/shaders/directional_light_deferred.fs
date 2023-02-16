@@ -117,6 +117,23 @@ void main()
 	vec3 calColor;
 	//directional light
 	{
+
+		float shadowScalar = 1.0;
+		for(int CSMIdx = 0; CSMIdx < numOfCSM; ++CSMIdx)
+		{
+			vec4 shadowUV = worldToShadowViewProj[CSMIdx] * vec4(WorldPosition,1.0);
+			shadowUV = shadowUV / shadowUV.w;
+			vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
+			if(csmUV.x > 0.0 && csmUV.x < 1.0
+				&& csmUV.y > 0.0 && csmUV.y < 1.0)
+			{
+				float fCsmIdx = float(CSMIdx);
+				float fNumOfCSM = float(numOfCSM);
+				vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/fNumOfCSM) + vec2(0.0, fCsmIdx * 1.0/fNumOfCSM);
+				shadowScalar = shadowUV.z * 0.5 + 0.47f < texture(shadowMapCSM, resoveCSMUV).r ? 1.0 : 0.0;
+			}
+		}	
+
 		//in comming
 		vec3 L = DirectionalLightDir;
 		vec3 H = normalize(viewDir + L);
@@ -133,25 +150,11 @@ void main()
 		vec3 kS = F;
 		vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
-		calColor = (kD * albedo * InvPI + specularPart) * LC * max(dot(WorldNormal, L),0.0);
+		calColor = (kD * albedo * InvPI + specularPart) * LC * min(max(dot(WorldNormal, L),0.0), shadowScalar);
 	}
 
-	float shadowScalar = 1.0;
-	for(int CSMIdx = 0; CSMIdx < numOfCSM; ++CSMIdx)
-	{
-		vec4 shadowUV = worldToShadowViewProj[CSMIdx] * vec4(WorldPosition,1.0);
-		shadowUV = shadowUV / shadowUV.w;
-		vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
-		if(csmUV.x > 0.0 && csmUV.x < 1.0
-			&& csmUV.y > 0.0 && csmUV.y < 1.0)
-		{
-			float fCsmIdx = float(CSMIdx);
-			float fNumOfCSM = float(numOfCSM);
-			vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/fNumOfCSM) + vec2(0.0, fCsmIdx * 1.0/fNumOfCSM);
-			shadowScalar = shadowUV.z + 0.03f > texture(shadowMapCSM, resoveCSMUV).r ? 1.0 : 0.0;
-		}
-	}
+	
 
-	vec3 finalColor = (calColor * shadowScalar);// * specular + EnvLightColor * albedo * ao);
+	vec3 finalColor = (calColor);// * specular + EnvLightColor * albedo * ao);
 	FragColor = vec4(finalColor, 1);// pow(vec4(finalColor/(finalColor + vec3(1)), 1), vec4(1.0/2.2));
 }

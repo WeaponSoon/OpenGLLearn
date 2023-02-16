@@ -201,12 +201,12 @@ void FCameraComponent::Draw() const
                     auto bufferSize = gBufferRef->Color[0]->GetSize();
                     float aspectRatio = bufferSize.x / bufferSize.y;
                     for (int CSMIndex = 0; CSMIndex < light.numOfCSM; ++CSMIndex)
-                    {
+                    { 
                         glViewport(0, 0, shadowMapSize.x, shadowMapSize.x * (CSMIndex + 1));
                         float CSMInnerFarPlane = ((CSMIndex + 1) / (float)light.numOfCSM) * light.lightmapDistance;
                         float CSMInnerNearPlane = ((CSMIndex) / (float)light.numOfCSM) * light.lightmapDistance;
-
-                        float lhalfHight = CSMInnerFarPlane * tanHalfZoom;
+                         
+                        float lhalfHight = CSMInnerFarPlane * tanHalfZoom; 
                         float lhalfWidth = lhalfHight * aspectRatio;
                         float lHalfLength = (CSMInnerFarPlane - CSMInnerNearPlane) / 2;
                         float CSMRadius = glm::sqrt(lhalfHight * lhalfHight + lhalfWidth * lhalfWidth + lHalfLength * lHalfLength);
@@ -226,7 +226,7 @@ void FCameraComponent::Draw() const
 
                         for (auto&& primitve : renderBatches)
                         { 
-                            primitve.Draw_InputVP(casterView, proj, shadowCasterPos);
+                            primitve.Draw_InputVP(casterView, proj, shadowCasterPos); 
                         }
                     }
 
