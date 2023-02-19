@@ -220,6 +220,10 @@ void FCameraComponent::Draw() const
                         }
 
                         glm::mat4 casterView = glm::lookAt(shadowCasterPos, shadowCasterPos + light.direction, shadowCasterUp);
+
+                        
+
+
                         glm::mat4 proj = glm::ortho(-CSMRadius, CSMRadius, -CSMRadius, CSMRadius, 1.0f, 10.0f);
 
                         light.worldToShadowProj[CSMIndex] = proj * casterView;
