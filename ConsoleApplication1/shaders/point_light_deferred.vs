@@ -2,10 +2,17 @@
 
 layout (location = 0) in vec3 Position;
 
-out vec2 uv;
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+
+
+out vec4 clipPosition;
 
 void main()
 {
-    gl_Position = vec4(Position, 1.0f);
-    uv = Position.xy * vec2(0.5f,0.5f) + vec2(0.5f,0.5f);
+    clipPosition = projection * view * model * vec4(Position, 1.0f);
+    gl_Position = clipPosition;// projection * view * model * vec4(Position, 1.0f);
+
 }

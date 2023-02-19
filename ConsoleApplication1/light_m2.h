@@ -116,13 +116,15 @@ public:
 
 	glm::vec3 pointLightParam;
 
-	FPointLightComponent(glm::vec3 inLightColor, glm::vec3 inLightLocation, glm::vec3 inPointLightParam) : FLightComponent(inLightColor), pointLightParam(inPointLightParam)
+	float radius;
+
+	FPointLightComponent(glm::vec3 inLightColor, glm::vec3 inLightLocation, glm::vec3 inPointLightParam, float inRadius) : FLightComponent(inLightColor), pointLightParam(inPointLightParam), radius(inRadius)
 	{
 		SetWorldLocation(inLightLocation);
 	}
 
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
 	{
-		outElement.emplace_back(ELightType::LT_Point, lightColor, pointLightParam, GetWorldLocation(), 0.0f, nullptr, 100.f,1);
+		outElement.emplace_back(ELightType::LT_Point, lightColor, pointLightParam, GetWorldLocation(), radius, nullptr, 100.f,1);
 	}
 };

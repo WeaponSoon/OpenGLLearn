@@ -324,19 +324,69 @@ void FCameraComponent::Draw() const
         {
             FPointLightComponent::PointLightDeferredGeo = std::make_shared<FPrimitive>();
 
-            float geoDatas[] = {
-                -1.0f, 1.0f, -0.5f,
-                -1.0f, -1.0f,-0.5f,
-                1.0f, -1.0f,-0.5f,
-                1.0f, 1.0f, -0.5f
-            };
+
+
+			float geoDatas[] = {
+				0.5f, -0.5f, -0.5f,  
+				-0.5f, -0.5f, -0.5f,  
+				0.5f,  0.5f, -0.5f,  
+				-0.5f,  0.5f, -0.5f,  
+				0.5f,  0.5f, -0.5f,  
+				-0.5f, -0.5f, -0.5f,  
+
+				-0.5f, -0.5f,  0.5f,  
+				0.5f, -0.5f,  0.5f,  
+				0.5f,  0.5f,  0.5f,  
+				0.5f,  0.5f,  0.5f,  
+				-0.5f,  0.5f,  0.5f,  
+				-0.5f, -0.5f,  0.5f,  
+
+				-0.5f,  0.5f,  0.5f,  
+				-0.5f,  0.5f, -0.5f,  
+				-0.5f, -0.5f, -0.5f,  
+				-0.5f, -0.5f, -0.5f,  
+				-0.5f, -0.5f,  0.5f,  
+				-0.5f,  0.5f,  0.5f,  
+
+				0.5f,  0.5f, -0.5f,  
+				0.5f,  0.5f,  0.5f,  
+				0.5f, -0.5f, -0.5f,  
+				0.5f, -0.5f,  0.5f,  
+				0.5f, -0.5f, -0.5f,  
+				0.5f,  0.5f,  0.5f,  
+
+
+				-0.5f, -0.5f, -0.5f,  
+				0.5f, -0.5f, -0.5f,  
+				0.5f, -0.5f,  0.5f,  
+				 0.5f, -0.5f,  0.5f,  
+				-0.5f, -0.5f,  0.5f,  
+				-0.5f, -0.5f, -0.5f,  
+
+				0.5f,  0.5f, -0.5f,  
+				-0.5f,  0.5f, -0.5f,  
+				0.5f,  0.5f,  0.5f,  
+				-0.5f,  0.5f,  0.5f, 
+				0.5f,  0.5f,  0.5f,  
+				-0.5f,  0.5f, -0.5f,  
+			};
+
+
+
+
+            //float geoDatas[] = {
+            //    -1.0f, 1.0f, -0.5f,
+            //    -1.0f, -1.0f,-0.5f,
+            //    1.0f, -1.0f,-0.5f,
+            //    1.0f, 1.0f, -0.5f
+            //};
 
             std::vector<char> vertex;
             vertex.resize(sizeof(geoDatas));
             memcpy(vertex.data(), geoDatas, vertex.size());
 
             std::vector<unsigned int> index = {
-                0, 1, 2, 0, 2, 3
+               // 0, 1, 2, 0, 2, 3
             };
 
             FPrimitiveVertexDesc desc;
@@ -350,6 +400,7 @@ void FCameraComponent::Draw() const
         {
             FPointLightComponent::PointLightDeferredShader = std::make_shared<FShader>("./shaders/point_light_deferred.vs", "./shaders/point_light_deferred.fs");
             FPointLightComponent::PointLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+            FPointLightComponent::PointLightDeferredShader->SetCullMethod(ECullMethod::CM_None);
         }
 
 
@@ -395,6 +446,13 @@ void FCameraComponent::Draw() const
                 break;
 	            }
             case ELightType::LT_Point:
+	            {
+                uint8_t PointLightMask = 1 << 3;
+
+                glEnable(GL_STENCIL_TEST);
+                glStencilMask(PointLightMask);
+                glStencilFunc(GL_NOTEQUAL, PointLightMask, PointLightMask);
+                glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 
                 FPointLightComponent::PointLightDeferredShader->use();
                 FPointLightComponent::PointLightDeferredGeo->use();
@@ -407,11 +465,22 @@ void FCameraComponent::Draw() const
                 FPointLightComponent::PointLightDeferredShader->setVec3("PointLightPosition", light.location);
                 FPointLightComponent::PointLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
 
-            	glDrawElements(GL_TRIANGLES, FPointLightComponent::PointLightDeferredGeo->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+                FPointLightComponent::PointLightDeferredShader->setMat4("projection", GetView().project);
+                FPointLightComponent::PointLightDeferredShader->setMat4("view", GetView().view);
+                glm::mat4 matid(1);
+                FPointLightComponent::PointLightDeferredShader->setMat4("model", glm::translate(matid, light.location)* glm::scale(matid, glm::vec3(light.radius / 0.5f)));
+
+                glDrawArrays(GL_TRIANGLES, 0, FPointLightComponent::PointLightDeferredGeo->GetNumOfVertex());
+
+
+                glClear(GL_STENCIL_BUFFER_BIT);
 
                 glBindVertexArray(0);
                 glUseProgram(0);
-                break;
+                glDisable(GL_STENCIL_TEST);
+	            }
+
+            	break;
             case ELightType::LT_Env:
             {
                     FEnvLightComponent::EnvLightDeferredShader->SetTexture("gEmissiveAO", gBufferRef->Color[0]);

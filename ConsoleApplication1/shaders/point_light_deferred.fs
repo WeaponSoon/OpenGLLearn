@@ -1,6 +1,6 @@
 #version 330 core
 
-in vec2 uv;
+in vec4 clipPosition;
 
 out vec4 FragColor;
 
@@ -98,6 +98,8 @@ vec3 CalcFreshnel(float cosTheta, vec3 F0)
 
 void main()
 {
+	vec3 ndcPosition = clipPosition.xyz/clipPosition.w;
+	vec2 uv = ndcPosition.xy * 0.5 + 0.5;
 	vec3 albedo = GetAlbedo(uv);
 	float roughness = GetRoughness(uv);
 	float metallic = GetMetallic(uv);

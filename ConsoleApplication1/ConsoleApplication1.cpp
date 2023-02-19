@@ -270,9 +270,15 @@ int main()
 	//cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
     cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));  
 
-    auto cameraFollowPointLight = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(1,0,0), glm::vec3(0), glm::vec3(-0.03,0,1));
+    /*auto cameraFollowPointLight = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(1,0,0), glm::vec3(0), glm::vec3(-0.03,0,1), 6.0f);
     cameraFollowPointLight->AttachTo(cameraComp, EAttachRule::AR_SnapToTarget);
+    cameraFollowPointLight->SetLocalLocation(glm::vec3(-1, 0, 0));
 
+    auto PointLight = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(0, 1, 0), glm::vec3(0), glm::vec3(-0.03, 0, 1), 6.0f);
+    PointLight->AttachTo(cameraComp, EAttachRule::AR_SnapToTarget);
+    PointLight->SetLocalLocation(glm::vec3(1, 0, 0));*/
+
+    auto PointLight2 = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(0, 0, 0.5), glm::vec3(0,0,3), glm::vec3(-0.03, 0, 1), 6.0f);
 
     FTextureRef pbrtex[5];
     pbrtex[0] = std::make_shared<FTexture>("./objects/backpack/diffuse.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
