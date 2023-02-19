@@ -95,7 +95,7 @@ public:
 		}
 	}
 
-	FDirectionalLightComponent(glm::vec3 inLightColor, glm::quat inRotation) : FLightComponent(inLightColor), baseShadowMapSize(1024), numOfCSM(1), lightmapDistance(10.f)
+	FDirectionalLightComponent(glm::vec3 inLightColor, glm::quat inRotation) : FLightComponent(inLightColor), baseShadowMapSize(2048), numOfCSM(1), lightmapDistance(10.f)
 		, shadowMap(std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA))
 	{
 		SetWorldTransform(glm::mat4_cast(inRotation));

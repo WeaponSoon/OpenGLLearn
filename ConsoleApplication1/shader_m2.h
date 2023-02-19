@@ -486,7 +486,7 @@ public:
             }
             return true;
         }
-        return false;
+        return false; 
     }
 
     bool SetTexture(const std::string& name, const FTextureRef& inTexture)

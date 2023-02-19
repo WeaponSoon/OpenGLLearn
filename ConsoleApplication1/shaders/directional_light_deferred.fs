@@ -124,8 +124,8 @@ void main()
 			vec4 shadowUV = worldToShadowViewProj[CSMIdx] * vec4(WorldPosition,1.0);
 			shadowUV = shadowUV / shadowUV.w;
 			vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
-			if(csmUV.x > 0.0 && csmUV.x < 1.0
-				&& csmUV.y > 0.0 && csmUV.y < 1.0)
+			if(csmUV.x > 0.1 && csmUV.x < 0.9
+				&& csmUV.y > 0.1 && csmUV.y < 0.9 && shadowUV.z < 0.9)
 			{
 				float fCsmIdx = float(CSMIdx);
 				float fNumOfCSM = float(numOfCSM);

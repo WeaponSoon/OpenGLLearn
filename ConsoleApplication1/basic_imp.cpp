@@ -219,10 +219,29 @@ void FCameraComponent::Draw() const
                             shadowCasterUp = glm::vec3(0, 0, -1);
                         }
 
+
+                        glm::vec3 casterForward = light.direction;
+                    	glm::vec3 casterRight = glm::normalize(glm::cross(casterForward, shadowCasterUp));
+                        glm::vec3 casterUp = glm::cross(casterRight, casterForward);
+
+                        glm::vec3 shadowCasterBasePos = GetWorldLocation() + GetFowardInWorldSpace() * (CSMInnerNearPlane + CSMInnerFarPlane) * 0.5f;
+
+                        float rightValue = glm::dot(shadowCasterBasePos, casterRight);
+                        float upValue = glm::dot(shadowCasterBasePos, casterUp);
+                        float forwardValue = glm::dot(shadowCasterBasePos, casterForward);
+
+                        glm::vec2 cellCount = light.shadowMap->Depth->GetSize();
+                        float rightStepSize = 2 * CSMRadius / cellCount.x;
+                        float upStepSize = 2 * CSMRadius / cellCount.y;
+
+                        float rightStepValue = glm::floor(rightValue / rightStepSize) * rightStepSize;
+                        float upStepValue = glm::floor(upValue / upStepSize) * upStepSize;
+
+
+                        shadowCasterBasePos = rightStepValue * casterRight + upStepValue * casterUp + forwardValue * light.direction;
+                        shadowCasterPos = shadowCasterBasePos - light.direction * 5.0f;
+
                         glm::mat4 casterView = glm::lookAt(shadowCasterPos, shadowCasterPos + light.direction, shadowCasterUp);
-
-                        
-
 
                         glm::mat4 proj = glm::ortho(-CSMRadius, CSMRadius, -CSMRadius, CSMRadius, 1.0f, 10.0f);
 
