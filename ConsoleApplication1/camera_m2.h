@@ -103,7 +103,7 @@ public:
         return ret;
     }
 
-
+    void DrawShdowMap(class FLightRenderBatch& light, std::vector<FRenderBatch>& renderBatches) const;
 };
 
 

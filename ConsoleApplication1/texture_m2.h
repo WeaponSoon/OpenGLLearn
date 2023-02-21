@@ -242,9 +242,47 @@ private:
 
     std::vector<std::function<void(void)>> cmds;
 
-    void Use()
+    void Use() const
     {
         glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    }
+
+    glm::vec2 UseDepth() const
+    {
+        Use();
+        auto shadowMapSize = Depth->GetSize();
+        glViewport(0, 0, shadowMapSize.x, shadowMapSize.y);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        return shadowMapSize;
+    }
+    void End() const
+    {
+        // glDisable(GL_DEPTH_TEST);
+        glUseProgram(0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    void UseColor(const glm::vec2& viewportSize, const  glm::vec4& clear_color) const
+    {
+        Use();
+        glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
+        glClearColor(clear_color.r, clear_color.g, clear_color.b, clear_color.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        // glDisable(GL_DEPTH_TEST);
+    }
+
+    static void EnableStencil(uint8_t mask, GLenum failedOP, GLenum zfailedOP, GLenum zpassOP)
+    {
+        glEnable(GL_STENCIL_TEST);
+        glStencilMask(mask);
+        glStencilFunc(GL_NOTEQUAL, mask, mask);
+        glStencilOp(failedOP, zfailedOP, zpassOP);
+    }
+    static void DisableStencile()
+    {
+        glClear(GL_STENCIL_BUFFER_BIT);
+        glDisable(GL_STENCIL_TEST);
     }
 
 public:
@@ -259,7 +297,7 @@ public:
     {
         Use();
         glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 

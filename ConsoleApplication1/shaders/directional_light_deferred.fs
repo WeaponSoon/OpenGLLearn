@@ -19,6 +19,7 @@ uniform sampler2D gWorldNormalRoughness;
 uniform sampler2D shadowMapCSM;
 uniform int numOfCSM;
 uniform mat4 worldToShadowViewProj[4];
+// uniform float shadowMapSize;
 
 const float PI = 3.14159265359;
 const float InvPI = 0.3183098862;
@@ -118,21 +119,65 @@ void main()
 	//directional light
 	{
 
+// 		float shadowScalar = 1.0;
+// 		for(int CSMIdx = 0; CSMIdx < numOfCSM; ++CSMIdx)
+// 		{
+// 			vec4 shadowUV = worldToShadowViewProj[0] * vec4(WorldPosition,1.0);
+// 			shadowUV = shadowUV / shadowUV.w;
+// 			vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
+// 			if(csmUV.x > 0.0 && csmUV.x < 1.0
+// 				&& csmUV.y > 0.0 && csmUV.y < 1.0)
+// 			{
+// 				float fCsmIdx = float(0);
+// 				float fNumOfCSM = float(numOfCSM);
+// 				vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/fNumOfCSM) + vec2(0.0, fCsmIdx * 1.0/fNumOfCSM);
+// 				shadowScalar = shadowUV.z * 0.5 + 0.47f < texture(shadowMapCSM, resoveCSMUV).r ? 1.0 : 0.0;
+// 			}
+// 		}
+
 		float shadowScalar = 1.0;
+		
+		
 		for(int CSMIdx = 0; CSMIdx < numOfCSM; ++CSMIdx)
 		{
 			vec4 shadowUV = worldToShadowViewProj[CSMIdx] * vec4(WorldPosition,1.0);
 			shadowUV = shadowUV / shadowUV.w;
-			vec2 csmUV = shadowUV.xy * 0.5 + vec2(0.5,0.5);
-			if(csmUV.x > 0.1 && csmUV.x < 0.9
-				&& csmUV.y > 0.1 && csmUV.y < 0.9 && shadowUV.z < 0.9)
+			vec2 csmUV_base = shadowUV.xy * 0.5 + vec2(0.5,0.5);
+			vec2 csmUV = csmUV_base;
+   
+// 			float blur_step_x = 1.0 / shadowMapSize;
+// 			float blur_step_y = 1.0 / shadowMapSize;
+			float blur_step_x = 1.0 / 1024.0;
+			float blur_step_y = 1.0 / 1024.0;
+			
+			float blur_times = 0;
+			int blur_size = 2;
+			float avg_depth = 0;
+			
+			for(int x = -1 * blur_size; x <= blur_size; x++)
 			{
-				float fCsmIdx = float(CSMIdx);
-				float fNumOfCSM = float(numOfCSM);
-				vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/fNumOfCSM) + vec2(0.0, fCsmIdx * 1.0/fNumOfCSM);
-				shadowScalar = shadowUV.z * 0.5 + 0.47f < texture(shadowMapCSM, resoveCSMUV).r ? 1.0 : 0.0;
+				for(int y = -1 * blur_size; y <= blur_size; y++)
+				{
+					csmUV = csmUV_base + vec2(x * blur_step_x, y * blur_step_y);
+					if(csmUV.x > 0.1 && csmUV.x < 0.9
+						&& csmUV.y > 0.1 && csmUV.y < 0.9 && shadowUV.z < 0.9)
+					{
+						float fCsmIdx = float(CSMIdx);
+						float fNumOfCSM = float(numOfCSM);
+						vec2 resoveCSMUV = csmUV * vec2(1.0, 1.0/fNumOfCSM) + vec2(0.0, fCsmIdx * 1.0/fNumOfCSM);
+						avg_depth += shadowUV.z * 0.5 + 0.47f < texture(shadowMapCSM, resoveCSMUV).r ? 1.0 : 0.0;
+						blur_times++;
+					}
+				}
 			}
+			avg_depth /= blur_times;
+			shadowScalar = avg_depth;
+// 			shadowScalar = shadowUV.z * 0.5 + 0.47f < avg_depth ? 1.0 : 0.0;
 		}	
+// 		shadowScalar = shadowScalar / blur_times > 0.5? 1.0 : 0.0;
+// 		shadowScalar = shadowScalar / blur_times
+  
+		
 
 		//in comming
 		vec3 L = DirectionalLightDir;
@@ -151,6 +196,7 @@ void main()
 		vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 		calColor = (kD * albedo * InvPI + specularPart) * LC * min(max(dot(WorldNormal, L),0.0), shadowScalar);
+// 		calColor = texture(shadowMapCSM, resoveCSMUV).rgb;
 	}
 
 	
