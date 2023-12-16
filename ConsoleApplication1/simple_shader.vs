@@ -1,4 +1,4 @@
-#version 330 core
+
 
 #define MAX_BONE_INFLUENCE 4
 

@@ -1,4 +1,4 @@
-#version 330 core
+
 
 #define MAX_BONE_INFLUENCE 4
 
@@ -13,6 +13,8 @@ layout (location = 6) in float m_Weights[MAX_BONE_INFLUENCE];
 out vec2 TexCoord;
 out highp vec3 WorldPosition;
 out vec3 WorldNormal;
+out vec3 WorldTangent;
+out vec3 WorldBitangnet;
 
 uniform highp vec3 cameraPos;
 uniform mat4 model;
@@ -25,5 +27,6 @@ void main()
 	gl_Position = projection * view * model * vec4(Position, 1.0f);
 	TexCoord = vec2(TexCoords.x, TexCoords.y);
 	WorldNormal = (model * vec4(Normal, 0.0f)).xyz;
-	
+	WorldTangent = (model * vec4(Tangent, 0.0f)).xyz;
+	WorldBitangnet = (model * vec4(Bitangent, 0.0f)).xyz;
 }

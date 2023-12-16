@@ -57,6 +57,8 @@ public:
         }
 
         glBindVertexArray(VAO);
+
+
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, vertexData.size(), vertexData.data(), GL_STATIC_DRAW);
 

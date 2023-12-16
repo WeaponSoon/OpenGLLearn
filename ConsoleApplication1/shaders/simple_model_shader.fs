@@ -1,9 +1,11 @@
-#version 330 core
+
 out vec4 FragColor;
 
 in vec2 TexCoord;
 in highp vec3 WorldPosition;
 in vec3 WorldNormal;
+in vec3 WorldTangent;
+in vec3 WorldBitangnet;
 
 uniform vec3 DirectionalLightDir;
 uniform vec3 DirectionalLightColor;

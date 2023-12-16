@@ -36,7 +36,7 @@ FCameraComponent::FDeferredDrawer& FCameraComponent::GetDeferredCmds()
 
 void FCameraComponent::AdjustGBuffer()
 {
-    if(bDeferredPipeline)
+    //if(bDeferredPipeline)
     {
         FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
         bool bViewportSet = false;
@@ -61,17 +61,29 @@ void FCameraComponent::AdjustGBuffer()
             viewportSize.x = x;
             viewportSize.y = y;
         }
-        if(!gBufferRef || gBufferRef->Color[0]->GetSize() != viewportSize)
+        if (bDeferredPipeline)
         {
-            gBufferRef = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 4, EFrameBufferColorFormat::FCF_RGBA16F);
-            gFlipBufferRefs[0] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
-            gFlipBufferRefs[1] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+            if (!gBufferRef || gBufferRef->Color[0]->GetSize() != viewportSize)
+            {
+                gBufferRef = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 4, EFrameBufferColorFormat::FCF_RGBA16F);
+                gFlipBufferRefs[0] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+                //gFlipBufferRefs[1] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+            }
         }
+        else
+        {
+            if (!gFlipBufferRefs[0] || gFlipBufferRefs[0]->Color[0]->GetSize() != viewportSize)
+            {
+                gFlipBufferRefs[0] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+                //gFlipBufferRefs[1] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+            }
+        }
+        
     }
-    else
-    {
-        gBufferRef = nullptr;
-    }
+    //else
+    //{
+    //    gBufferRef = nullptr;
+    //}
 }
 
 FCameraComponent::FCameraComponent(glm::vec3 position) :frameBufferRef(FFrameBuffer::GetDefaultFrameBuffer()), Zoom(ZOOM)
@@ -176,11 +188,9 @@ void FCameraComponent::Draw() const
     }
 
     glm::vec4 clearColor = useFrameBuffer->clearColor;
-
+    const_cast<FCameraComponent*>(this)->AdjustGBuffer();
     if(bDeferredPipeline)
     {
-        const_cast<FCameraComponent*>(this)->AdjustGBuffer();
-
 
         //draw shadow maps
 #if 1
@@ -575,7 +585,7 @@ void FCameraComponent::Draw() const
     }
     else
     {
-        useFrameBuffer->Use();
+        gFlipBufferRefs[0]->Use();
         glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
         glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -620,8 +630,58 @@ void FCameraComponent::Draw() const
         }
         glUseProgram(0);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+        useFrameBuffer->Use();
+
+        glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+        if (!FinalShader)
+        {
+            FinalShader = std::make_shared<FShader>("./shaders/final_shader.vs", "./shaders/final_shader.fs");
+        }
+        if (!FinalPrimitive)
+        {
+            FinalPrimitive = std::make_shared<FPrimitive>();
+
+            float geoDatas[] = {
+                -1.0f, 1.0f, -0.5f,
+                -1.0f, -1.0f,-0.5f,
+                1.0f, -1.0f,-0.5f,
+                1.0f, 1.0f, -0.5f
+            };
+
+            std::vector<char> vertex;
+            vertex.resize(sizeof(geoDatas));
+            memcpy(vertex.data(), geoDatas, vertex.size());
+
+            std::vector<unsigned int> index = {
+                0, 1, 2, 0, 2, 3
+            };
+
+            FPrimitiveVertexDesc desc;
+            desc.structSize = 3 * sizeof(float);
+            FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+            desc.props.push_back(prop);
+
+            FinalPrimitive->SetData(vertex, index, desc);
+        }
+
+        FinalShader->use();
+        FinalPrimitive->use();
+
+        FinalShader->SetTexture("sceneColor", gFlipBufferRefs[0]->Color[0]);
+
+        glDrawElements(GL_TRIANGLES, FinalPrimitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+
+        glBindVertexArray(0);
+        glUseProgram(0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glEnable(GL_DEPTH_TEST);
+
     }
-}
+} 
 
 std::shared_ptr<FTexture>& FTexture::GetBlack()
 {

@@ -2,6 +2,8 @@
 #define SHADER_H
 
 
+#include <unordered_map>
+#include <regex>
 
 #include "core_m2.h"
 #include "texture_m2.h"
@@ -24,29 +26,208 @@ enum class EBlendMethod
     BM_Additive,
 };
 
+struct FShaderVariantKey
+{
+    std::vector<uint8_t> Keys;
+
+    size_t size = 0 ;
+
+
+
+    void Add(int toAdd)
+    {
+        size+=toAdd;
+        while(size > Keys.size() * 8)
+        {
+            Keys.push_back(0);
+        }
+    }
+
+    bool operator[](size_t pos) const
+    {
+        return !!(Keys[pos / 8] & (((uint8_t)1) << (pos % 8u)));
+    }
+
+    void Set(size_t pos, bool value)
+    {
+        if(pos >= size)
+        {
+            return;
+        }
+
+        uint8_t bucket = Keys[pos / 8];
+        if(value)
+        {
+            bucket |= (((uint8_t)1) << (pos % 8u));
+        }
+        else
+        {
+	        bucket &= ~(((uint8_t)1) << (pos % 8u));
+        }
+        Keys[pos / 8] = bucket;
+    }
+
+    bool operator==(const FShaderVariantKey& other) const
+    {
+        return size == other.size && Keys == other.Keys;
+    }
+
+};
+
+template<>
+struct std::hash<FShaderVariantKey>
+{
+	inline void CombineHash(size_t& Seed, size_t Hash) const noexcept
+	{
+		Seed ^= Hash + 0x9e3779b9 + (Seed << 6) + (Seed >> 2);
+	}
+	size_t operator()(const FShaderVariantKey& v) const noexcept {
+		size_t HashIndex = std::hash<size_t>()(v.size);
+		for(auto C : v.Keys)
+		{
+			CombineHash(HashIndex, hash<uint8_t>()(C));
+		}
+		return HashIndex;
+	}
+};
+
 class FShader
 {
+
+
+
+
     class FInternalShader
     {
         
 
     public:
         bool bValid = false;
-        unsigned int vertexShader = GL_NONE;
-        unsigned int fragmentShader = GL_NONE;
+        std::string vertexCode;
+        std::string fragmentCode;
+        std::unordered_map<FShaderVariantKey,unsigned int> vertexShaders;
+        std::unordered_map<FShaderVariantKey,unsigned int> fragmentShaders;
+
+        std::unordered_map<std::string, size_t> switchNameToPos;
+
         FInternalShader() = default;
         FInternalShader(const FInternalShader&) = delete;
         FInternalShader(FInternalShader&&) = delete;
         FInternalShader& operator=(FInternalShader&) = delete;
         ~FInternalShader()
         {
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragmentShader);
+            for(auto&& vertexShader : vertexShaders)
+            {
+                glDeleteShader(vertexShader.second);
+            }
+            for(auto&& fragmentShader : fragmentShaders )
+            {
+                glDeleteShader(fragmentShader.second);
+            }
         }
+
+        FShaderVariantKey StatusToID(const std::map<std::string, bool>& InStatus)
+        {
+            FShaderVariantKey InKey;
+            InKey.Add(switchNameToPos.size());
+
+            for (auto&& item : InStatus)
+            {
+                auto&& itrr = switchNameToPos.find(item.first);
+                if (itrr != switchNameToPos.end())
+                {
+                    InKey.Set(itrr->second, item.second);
+                }
+            }
+            return InKey;
+        }
+
+        bool CompileShaderAtStatus(const std::map<std::string, bool>& InStatus)
+        {
+            FShaderVariantKey InKey = StatusToID(InStatus);
+           
+
+            {
+                auto&& res = vertexShaders.emplace(InKey, GL_NONE);
+                if (res.second || res.first->second == GL_NONE)
+                {
+                    // vertex shader
+                    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+                    std::string defs;
+                    defs += "#version 330 core\n";
+                    for (auto&& item : switchNameToPos)
+                    {
+                        defs += "#define ";
+                        defs += item.first;
+
+                        auto&& Ins = InStatus.find(item.first);
+                        if (Ins != InStatus.end())
+                        {
+                            defs += (Ins->second ? " 1\n" : " 0\n");
+                        }
+                        else
+                        {
+                            defs += " 0\n";
+                        }
+                        
+                    }
+                    defs += "\n";
+                    const char* vShaderCode[2] = { defs.c_str(),vertexCode.c_str() };
+
+                    glShaderSource(vertexShader, 2, vShaderCode, NULL);
+                    glCompileShader(vertexShader);
+
+                    if (!checkCompileErrors(vertexShader, "VERTEX"))
+                    {
+                        glDeleteShader(vertexShader);
+                        return false;
+                    }
+
+                    res.first->second = vertexShader;
+                }
+            }
+            {
+                auto&& res = fragmentShaders.emplace(InKey, GL_NONE);
+                if (res.second || res.first->second == GL_NONE)
+                {
+                    // vertex shader
+                    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+                    std::string defs;
+                    defs += "#version 330 core\n";
+                    for (auto&& item : switchNameToPos)
+                    {
+                        defs += "#define ";
+                        defs += item.first;
+                        auto&& Ins = InStatus.find(item.first);
+                        if (Ins != InStatus.end())
+                        {
+                            defs += (Ins->second ? " 1\n" : " 0\n");
+                        }
+                        else
+                        {
+                            defs += " 0\n";
+                        }
+                    }
+                    defs += "\n";
+                    const char* vShaderCode[2] = { defs.c_str(),fragmentCode.c_str() };
+
+                    glShaderSource(fragmentShader, 2, vShaderCode, NULL);
+                    glCompileShader(fragmentShader);
+
+                    if (!checkCompileErrors(fragmentShader, "VERTEX"))
+                    {
+                        glDeleteShader(fragmentShader);
+                        return false;
+                    }
+                    res.first->second = fragmentShader;
+                }
+            }
+            return true;
+        }
+
         void InitFromFile(const char* vertexPath, const char* fragmentPath)
         {
-            std::string vertexCode;
-            std::string fragmentCode;
+
             std::ifstream vShaderFile;
             std::ifstream fShaderFile;
             // ensure ifstream objects can throw exceptions:
@@ -73,32 +254,51 @@ class FShader
                 std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << e.what() << std::endl;
                 return;
             }
+
+            std::vector<std::string> tokenLines;
+
+            {
+                int tti = 0; 
+                
+                //std::string ct("\\/\\*<.*?>");
+                std::regex rg("\\/\\*<.*?>");
+
+                for(std::sregex_iterator It(vertexCode.begin(), vertexCode.end(), rg),end; It != end; ++It)
+                {
+                    tokenLines.push_back(It->str(0));
+                }
+                for (std::sregex_iterator It(fragmentCode.begin(), fragmentCode.end(), rg), end; It != end; ++It)
+                {
+                    tokenLines.push_back(It->str(0));
+                }
+                size_t curPos = 0;
+                std::regex rg_switch("Switch=[a-zA-Z]\\w*(,|$)");
+                for(auto&& cokl : tokenLines)
+                {
+                    for (std::sregex_iterator It(cokl.begin()+3, cokl.end()-1, rg_switch), end; It != end; ++It)
+                    {
+                        std::string ktm = It->str(0);
+
+                        std::string ktmf(ktm.begin() + 7, ktm[ktm.size() - 1] == ',' ? ktm.end() - 1 : ktm.end());
+
+                        auto&&r = switchNameToPos.emplace(ktmf,0ul);
+                        if(r.second)
+                        {
+                            r.first->second = curPos;
+                            curPos++;
+                        }
+                    }
+                }
+
+            }
+            
+
+
             const char* vShaderCode = vertexCode.c_str();
             const char* fShaderCode = fragmentCode.c_str();
-            // 2. compile shaders
-            
-            // vertex shader
-            vertexShader = glCreateShader(GL_VERTEX_SHADER);
-            glShaderSource(vertexShader, 1, &vShaderCode, NULL);
-            glCompileShader(vertexShader);
-
-            if(!checkCompileErrors(vertexShader, "VERTEX"))
-            {
-                glDeleteShader(vertexShader);
-                vertexShader = GL_NONE;
-                return;
-            }
-            // fragment Shader
-            fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-            glShaderSource(fragmentShader, 1, &fShaderCode, NULL);
-            glCompileShader(fragmentShader);
-            if(!checkCompileErrors(fragmentShader, "FRAGMENT"))
-            {
-                glDeleteShader(fragmentShader);
-                fragmentShader = GL_NONE;
-                return;
-            }
-            bValid = true;
+            bValid = CompileShaderAtStatus(std::map<std::string, bool>());
+			
+            //bValid = true;
         }
     };
 
@@ -169,14 +369,14 @@ class FShader
     {
         GLint currentProgram = GL_NONE;
         glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
-        return ID != GL_NONE && ID == currentProgram;
+        return CurrentID != GL_NONE && CurrentID == currentProgram;
     }
 
     // activate the shader
     // ------------------------------------------------------------------------
     void use() const
     {
-        glUseProgram(ID);
+        glUseProgram(CurrentID);
 
         ApplyCullMethod();
         ApplyBlendMethod();
@@ -185,9 +385,13 @@ class FShader
             {
                 if (pair.second.slot >= 0 && pair.second.texture->IsValid())
                 {
-                    glActiveTexture(GL_TEXTURE0 + pair.second.slot);
-                    glBindTexture(GL_TEXTURE_2D, pair.second.texture->ID);
-                    glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), pair.second.slot);
+                    GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+                    if(Loc >= 0)
+                    {
+                        glActiveTexture(GL_TEXTURE0 + pair.second.slot);
+                        glBindTexture(GL_TEXTURE_2D, pair.second.texture->ID);
+                        glUniform1i(Loc, pair.second.slot);
+                    }
                 }
             }
         }
@@ -195,60 +399,156 @@ class FShader
 
         for (auto&& pair : boolMap)
         {
-            glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), static_cast<int>(pair.second));
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if(Loc < 0)
+            {
+                continue;
+            }
+            glUniform1i(Loc, static_cast<int>(pair.second));
+            
         }
 
         for (auto&& pair : intMap)
         {
-            glUniform1i(glGetUniformLocation(ID, pair.first.c_str()), pair.second);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniform1i(glGetUniformLocation(CurrentID, pair.first.c_str()), pair.second);
         }
 
         for (auto&& pair : floatMap)
         {
-            glUniform1f(glGetUniformLocation(ID, pair.first.c_str()), pair.second);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniform1f(glGetUniformLocation(CurrentID, pair.first.c_str()), pair.second);
         }
 
         for (auto&& pair : vec2Map)
         {
-            glUniform2fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniform2fv(glGetUniformLocation(CurrentID, pair.first.c_str()), 1, &pair.second[0]);
         }
 
         for (auto&& pair : vec3Map)
         {
-            glUniform3fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniform3fv(glGetUniformLocation(CurrentID, pair.first.c_str()), 1, &pair.second[0]);
         }
 
         for (auto&& pair : vec4Map)
         {
-            glUniform4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, &pair.second[0]);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniform4fv(glGetUniformLocation(CurrentID, pair.first.c_str()), 1, &pair.second[0]);
         }
 
         for (auto&& pair : mat2Map)
         {
-            glUniformMatrix2fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniformMatrix2fv(glGetUniformLocation(CurrentID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
         }
 
         for (auto&& pair : mat3Map)
         {
-            glUniformMatrix3fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniformMatrix3fv(glGetUniformLocation(CurrentID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
         }
 
         for (auto&& pair : mat4Map)
         {
-            glUniformMatrix4fv(glGetUniformLocation(ID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
+            GLint Loc = glGetUniformLocation(CurrentID, pair.first.c_str());
+            if (Loc < 0)
+            {
+                continue;
+            }
+            glUniformMatrix4fv(glGetUniformLocation(CurrentID, pair.first.c_str()), 1, GL_FALSE, &pair.second[0][0]);
         }
     }
 
     std::shared_ptr<FInternalShader> internalShader;
+    unsigned int CurrentID;
+    std::unordered_map<FShaderVariantKey, unsigned int> IDs;
+    
+    std::map<std::string, bool> currentStatus;
+
+
+    void SwitchShader()
+    {
+	    if(internalShader->bValid)
+	    {
+            auto&& Key = internalShader->StatusToID(currentStatus);
+            auto&& r = IDs.emplace(Key, GL_NONE);
+            if(r.second)
+            {
+                bool suc = internalShader->CompileShaderAtStatus(currentStatus);
+                if(suc)
+                {
+                    GLuint ID = glCreateProgram();
+                    glAttachShader(ID, internalShader->vertexShaders[Key]);
+                    glAttachShader(ID, internalShader->fragmentShaders[Key]);
+                    glLinkProgram(ID);
+                    if (!checkCompileErrors(ID, "PROGRAM"))
+                    {
+                        glDeleteProgram(ID);
+                        return;
+                    }
+                    r.first->second = ID;
+                    CurrentID = ID;
+                }
+            }
+            else
+            {
+                CurrentID = r.first->second;
+            }
+	    }
+    }
 
 public:
-    unsigned int ID;
+    
 
     GLuint GetID() const
     {
-        return ID;
+        return CurrentID;
     }
 
+    void setSwitch(const std::string& switchName, bool value)
+    {
+        currentStatus[switchName] = value;
+        SwitchShader();
+    }
+    bool getSwitch(const std::string& switchName ) const
+    {
+        auto&& iter = currentStatus.find(switchName);
+        if(iter == currentStatus.end())
+        {
+            return false;
+        }
+        return iter->second;
+    }
     
 
     FShader(const FShader& otherShader) : textureSlot(otherShader.textureSlot),
@@ -263,41 +563,23 @@ public:
 		mat3Map(otherShader.mat3Map),
 		mat4Map(otherShader.mat4Map),
 		internalShader(otherShader.internalShader),
-		ID(GL_NONE)
+		CurrentID(GL_NONE)
+        
     {
-	    if(internalShader->bValid)
-	    {
-            ID = glCreateProgram();
-            glAttachShader(ID, internalShader->vertexShader);
-            glAttachShader(ID, internalShader->fragmentShader);
-            glLinkProgram(ID);
-            if (!checkCompileErrors(ID, "PROGRAM"))
-            {
-                glDeleteProgram(ID);
-                ID = GL_NONE;
-                return;
-            }
-	    }
+        SwitchShader();
+        currentStatus = otherShader.currentStatus;
+        SwitchShader();
     }
 
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
-    FShader(const char* vertexPath, const char* fragmentPath) : internalShader(std::make_shared<FInternalShader>()), ID(GL_NONE)
+    FShader(const char* vertexPath, const char* fragmentPath) : internalShader(std::make_shared<FInternalShader>()), CurrentID(GL_NONE)
     {
 
         internalShader->InitFromFile(vertexPath, fragmentPath);
         if(internalShader->bValid)
         {
-            ID = glCreateProgram();
-            glAttachShader(ID, internalShader->vertexShader);
-            glAttachShader(ID, internalShader->fragmentShader);
-            glLinkProgram(ID);
-            if (!checkCompileErrors(ID, "PROGRAM"))
-            {
-                glDeleteProgram(ID);
-                ID = GL_NONE;
-                return;
-            }
+            SwitchShader();
         }
         // shader Program
     }
@@ -310,9 +592,9 @@ public:
         {
             glUseProgram(GL_NONE);
         }
-        if (ID != GL_NONE)
+        for (auto&& ID : IDs)
         {
-            glDeleteProgram(ID);
+            glDeleteProgram(ID.second);
         }
     }
 
@@ -339,63 +621,27 @@ public:
     // ------------------------------------------------------------------------
     bool setBool(const std::string &name, bool value)
     {
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            boolMap[name] = value;
-            if (IsUsing())
-            {
-                glUniform1i(Location, (int)value);
-            }
-            return true;
-        }
-        return false;
+        boolMap[name] = value;
+        return true;
         
     }
     // ------------------------------------------------------------------------
     bool setInt(const std::string &name, int value) 
-    { 
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            intMap[name] = value;
-            if (IsUsing())
-            {
-                glUniform1i(Location, value);
-            }
-            return true;
-        }
-        return false;
+    {
+        intMap[name] = value;
+        return true;
     }
     // ------------------------------------------------------------------------
     bool setFloat(const std::string &name, float value) 
-    { 
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            floatMap[name] = value;
-            if (IsUsing())
-            {
-                glUniform1f(Location, value);
-            }
-            return true;
-        }
-        return false;   
+    {
+        floatMap[name] = value;
+        return true;
     }
     // ------------------------------------------------------------------------
     bool setVec2(const std::string &name, const glm::vec2 &value) 
-    { 
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            vec2Map[name] = value;
-            if (IsUsing())
-            {
-                glUniform2fv(Location, 1, &vec2Map[name][0]);
-            }
-            return true;
-        }
-        return false;
+    {
+        vec2Map[name] = value;
+        return true;
     }
     bool setVec2(const std::string &name, float x, float y)
     { 
@@ -403,18 +649,9 @@ public:
     }
     // ------------------------------------------------------------------------
     bool setVec3(const std::string &name, const glm::vec3 &value) 
-    { 
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            vec3Map[name] = value;
-            if (IsUsing())
-            {
-                glUniform3fv(Location, 1, &vec3Map[name][0]);
-            }
-            return true;
-        }
-        return false;
+    {
+        vec3Map[name] = value;
+        return true;
     }
     bool setVec3(const std::string &name, float x, float y, float z)
     { 
@@ -422,18 +659,9 @@ public:
     }
     // ------------------------------------------------------------------------
     bool setVec4(const std::string &name, const glm::vec4 &value)
-    { 
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            vec4Map[name] = value;
-            if (IsUsing())
-            {
-                glUniform4fv(Location, 1, &vec4Map[name][0]);
-            }
-            return true;
-        }
-        return false;
+    {
+        vec4Map[name] = value;
+        return true;
 
         
     }
@@ -444,72 +672,34 @@ public:
     // ------------------------------------------------------------------------
     bool setMat2(const std::string &name, const glm::mat2 &mat)
     {
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            mat2Map[name] = mat;
-            if (IsUsing())
-            {
-                glUniformMatrix2fv(Location, 1, GL_FALSE, &mat2Map[name][0][0]);
-            }
-            return true;
-        }
-        return false;
+        mat2Map[name] = mat;
+        return true;
 
         
     }
     // ------------------------------------------------------------------------
     bool setMat3(const std::string &name, const glm::mat3 &mat) 
     {
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            mat3Map[name] = mat;
-            if (IsUsing())
-            {
-                glUniformMatrix3fv(Location, 1, GL_FALSE, &mat3Map[name][0][0]);
-            }
-            return true;
-        }
-        return false;
+        mat3Map[name] = mat;
+        return true;
     }
     // ------------------------------------------------------------------------
     bool setMat4(const std::string &name, const glm::mat4 &mat)
     {
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
-        {
-            mat4Map[name] = mat;
-            if (IsUsing())
-            {
-                glUniformMatrix4fv(Location, 1, GL_FALSE, &mat4Map[name][0][0]);
-            }
-            return true;
-        }
-        return false; 
+        mat4Map[name] = mat;
+        return true;
     }
 
     bool SetTexture(const std::string& name, const FTextureRef& inTexture)
     {
-        GLint Location = glGetUniformLocation(ID, name.c_str());
-        if (Location >= 0)
+        auto&& textureStruct = textureMap[name];
+        if (textureStruct.slot < 0)
         {
-            auto&& textureStruct = textureMap[name];
-            if (textureStruct.slot < 0)
-            {
-                textureStruct.slot = ++textureSlot;
-            }
-
-            textureStruct.texture = inTexture;
-            if (IsUsing())
-            {
-                glActiveTexture(GL_TEXTURE0 + textureStruct.slot);
-                glBindTexture(GL_TEXTURE_2D, textureStruct.texture->ID);
-                glUniform1i(Location, textureStruct.slot);
-            }
-            return true;
+            textureStruct.slot = ++textureSlot;
         }
-        return false;
+        textureStruct.texture = inTexture;
+
+        return true;
         
     }
 

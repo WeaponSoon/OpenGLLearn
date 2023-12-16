@@ -48,7 +48,7 @@ public:
 
     FFrameBufferRef frameBufferRef;
     FFrameBufferRef gBufferRef;
-    FFrameBufferRef gFlipBufferRefs[2];
+    FFrameBufferRef gFlipBufferRefs[1];
 
     bool bDeferredPipeline = false;
 

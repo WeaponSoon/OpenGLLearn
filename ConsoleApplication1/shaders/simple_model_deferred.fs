@@ -1,4 +1,4 @@
-#version 330 core
+
 
 layout (location = 0) out vec4 gEmissiveAO;
 layout (location = 1) out highp vec4 gWorldPosMetallic;
@@ -9,6 +9,8 @@ layout (location = 3) out vec4 gWorldNormalRoughness;
 in vec2 TexCoord;
 in highp vec3 WorldPosition;
 in vec3 WorldNormal;
+in vec3 WorldTangent;
+in vec3 WorldBitangnet;
 
 // texture samplers
 uniform sampler2D Albedo;

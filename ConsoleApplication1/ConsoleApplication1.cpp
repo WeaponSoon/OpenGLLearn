@@ -87,9 +87,133 @@ public:
 
 };
 
+
+void GenerateSphereModel(float inRadius, uint32_t inHorizantalSegments, uint32_t inVerticalSegments, std::vector<char>& outSphereData, FPrimitiveVertexDesc& outVertexDesc)
+{
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec2> uv;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec3> tangent;
+    std::vector<glm::vec3> bitangent;
+    std::vector<unsigned int> indices;
+
+    const float PI = 3.14159265359f;
+    for (unsigned int x = 0; x <= inHorizantalSegments; ++x)
+    {
+        for (unsigned int y = 0; y <= inVerticalSegments; ++y)
+        {
+            float xSegment = (float)x / (float)inHorizantalSegments;
+            float ySegment = (float)y / (float)inVerticalSegments;
+
+            float xPosEquater = std::cos(xSegment * 2.0f * PI);// *std::sin(ySegment * PI);
+            float zPosEquater = std::sin(xSegment * 2.0f * PI);// *std::sin(ySegment * PI);
+
+            float xPos = xPosEquater * std::sin(ySegment * PI);
+            float yPos = std::cos(ySegment * PI);
+            float zPos = zPosEquater * std::sin(ySegment * PI);
+
+            positions.push_back(glm::vec3(xPos, yPos, zPos) * inRadius);
+            uv.push_back(glm::vec2(xSegment, ySegment));
+            normals.push_back(glm::normalize(glm::vec3(xPos, yPos, zPos)));
+            glm::vec3 tempTangent = glm::normalize(glm::cross(glm::vec3(xPosEquater, 0, zPosEquater), glm::vec3(0, 1, 0)));
+            tangent.push_back(tempTangent);
+            bitangent.push_back(glm::cross(glm::vec3(xPos, yPos, zPos), tempTangent));
+        }
+    }
+
+    bool oddRow = false;
+    for (unsigned int y = 0; y < inVerticalSegments; ++y)
+    {
+        if (!oddRow) // even rows: y == 0, y == 2; and so on
+        {
+            for (unsigned int x = 0; x <= inHorizantalSegments; ++x)
+            {
+                indices.push_back(y * (inHorizantalSegments + 1) + x);
+                indices.push_back((y + 1) * (inHorizantalSegments + 1) + x);
+            }
+        }
+        else
+        {
+            for (int x = inHorizantalSegments; x >= 0; --x)
+            {
+                indices.push_back((y + 1) * (inHorizantalSegments + 1) + x);
+                indices.push_back(y * (inHorizantalSegments + 1) + x);
+            }
+        }
+        oddRow = !oddRow;
+    }
+    //uint32_t indexCount = static_cast<unsigned int>(indices.size());
+
+    outVertexDesc.structSize = 14 * sizeof(float);
+    int propOffset = 0;
+    outVertexDesc.props.emplace_back(0, (void*)propOffset, GL_FLOAT, 3);
+    propOffset += 3 * sizeof(float);
+    if(normals.size() > 0)
+    {
+        outVertexDesc.props.emplace_back(1, (void*)propOffset, GL_FLOAT, 3);
+        propOffset += 3 * sizeof(float);
+    }
+    if(uv.size() > 0)
+    {
+        outVertexDesc.props.emplace_back(2, (void*)propOffset, GL_FLOAT, 2);
+        propOffset += 2 * sizeof(float);
+    }
+    if(tangent.size() > 0)
+    {
+        outVertexDesc.props.emplace_back(3, (void*)propOffset, GL_FLOAT, 3);
+        propOffset += 3 * sizeof(float);
+    }
+    if (bitangent.size() > 0)
+    {
+        outVertexDesc.props.emplace_back(4, (void*)propOffset, GL_FLOAT, 3);
+        propOffset += 3 * sizeof(float);
+    }
+
+    std::vector<float> data;
+    for (unsigned int i = 0; i < positions.size(); ++i)
+    {
+        data.push_back(positions[i].x);
+        data.push_back(positions[i].y);
+        data.push_back(positions[i].z);
+        if (normals.size() > 0)
+        {
+            data.push_back(normals[i].x);
+            data.push_back(normals[i].y);
+            data.push_back(normals[i].z);
+        }
+        if (uv.size() > 0)
+        {
+            data.push_back(uv[i].x);
+            data.push_back(uv[i].y);
+        }
+        if(tangent.size() > 0)
+        {
+            data.push_back(tangent[i].x);
+            data.push_back(tangent[i].y);
+            data.push_back(tangent[i].z);
+        }
+        if(bitangent.size() > 0)
+        {
+            data.push_back(bitangent[i].x);
+            data.push_back(bitangent[i].y);
+            data.push_back(bitangent[i].z);
+        }
+    }
+
+	
+
+    outSphereData.clear();
+    outSphereData.resize(data.size() * sizeof(float));
+    memcpy(outSphereData.data(), data.data(), outSphereData.size());
+}
+
+
 int main()
 {
 #if 1 //假装是从文件加载进来的数据
+
+
+
     float vertices[] = {
         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
         -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
@@ -133,6 +257,13 @@ int main()
          -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+    };
+
+    float planeWithNormal[] = {
+         -44.5f, -4.5f, -44.5f,  0.0f, 1.0f, 0.0f,
+        44.5f, -4.5f, -44.5f,  0.0f, 1.0f, 0.0f,
+         44.5f, -4.5f,  44.5f,  0.0f, 1.0f, 0.0f,
+        -44.5f, -4.5f,  44.5f,  0.0f, 1.0f, 0.0f,
     };
 
     float groundVertex[] =
@@ -188,15 +319,16 @@ int main()
     glfwSetKeyCallback(window, key_callback);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
+     
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
-
-    FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+     
+    FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
+    //FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
     FModel loadedModel("./objects/backpack/backpack.obj");
 
@@ -232,19 +364,30 @@ int main()
     ground->SetData(vertexData, indices, vertexDesc);
 
     //创建一个Shader作为模板 
-    FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+    FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
+    //FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+
+    FShaderRef ourShaderBasic = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/basic_shader.fs");
+    ourShaderBasic->setSwitch("Test1", true);
+    ourShaderBasic->setSwitch("Test1", false);
+
+
 
     //加载俩贴图
     FTextureRef tex[3];
     tex[0] = std::make_shared<FTexture>(("./container.jpg"), ETextureWarpMethod::TWM_Repeat, ETextureFilterMethod::TFM_TriLinear);
     tex[1] = std::make_shared<FTexture>(("./awesomeface.png"), ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
-
+     
+     
     //给场景添加一个相机
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
     cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
-    cameraComp->bDeferredPipeline = true;
+    cameraComp->bDeferredPipeline = false;
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
+     
+
+
       
      
     //创建一个渲染组件，作为场景的一个地面
@@ -268,7 +411,7 @@ int main()
     cameraFollower->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
     cameraFollower->GetShader(0)->SetTexture("AO", FTexture::GetWhite());
 	//cameraFollower->AttachTo(cameraComp, EAttachRule::AR_KeepRelative);
-    cameraFollower->SetLocalLocation(glm::vec3(1, 1, -3));  
+    cameraFollower->SetLocalLocation(glm::vec3(0, 0, -3));  
 
     /*auto cameraFollowPointLight = scene->CreateComponentWithArg<FPointLightComponent>(glm::vec3(1,0,0), glm::vec3(0), glm::vec3(-0.03,0,1), 6.0f);
     cameraFollowPointLight->AttachTo(cameraComp, EAttachRule::AR_SnapToTarget);
@@ -309,70 +452,90 @@ int main()
     }
 
 
-    //再随便给场景添加10个渲染组件
-    for (int i = 0; i < loadedModel.meshes.size(); i++)
-    {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(-(i % 16) % 4, i / 16, (i % 16) / 4) * 2.0f);
-        float angle = 20.0f * i;
-        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+    ////再随便给场景添加10个渲染组件
+    //for (int i = 0; i < loadedModel.meshes.size(); i++)
+    //{
+    //    glm::mat4 model = glm::mat4(1.0f);
+    //    model = glm::translate(model, glm::vec3(-(i % 16) % 4, i / 16, (i % 16) / 4) * 2.0f);
+    //    float angle = 20.0f * i;
+    //    model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
 
-        auto primitive = scene->CreateComponent<FPrimitiveComponent>();
+    //    auto primitive = scene->CreateComponent<FPrimitiveComponent>();
 
-        primitive->SetWorldTransform(model);
+    //    primitive->SetWorldTransform(model);
 
-        //为了方便展示，不同的渲染组件交替使用两个模型     
-        //if (i % 2)
-        {
-            primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
-        }
-        //else
-        //{ 
-        //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
-        //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
-        //}
-        primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
-        primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
-        primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
-        primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
-        primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
-        primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
-
-
-    }
+    //    //为了方便展示，不同的渲染组件交替使用两个模型     
+    //    //if (i % 2)
+    //    {
+    //        primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
+    //    }
+    //    //else
+    //    //{ 
+    //    //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
+    //    //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
+    //    //}
+    //    primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
+    //    primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
+    //    primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
+    //    primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
+    //    primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
+    //    primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
 
 
-    for (unsigned int i = 0; i < loadedModel.meshes.size(); i++)
-    {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3((i % 16) % 4,i / 16,(i % 16)/4) * 2.0f);
-        float angle = 20.0f * i;
-        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+    //}
 
-        auto primitive = scene->CreateComponent<FPrimitiveComponent>();
-        
-        primitive->SetWorldTransform(model);
 
-        //为了方便展示，不同的渲染组件交替使用两个模型     
-        //if (i % 2)
-        {
-            primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
-        }
-        //else
-        //{ 
-        //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
-        //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
-        //}
-        primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
-        primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
-        primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
-        primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
-        primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
-        primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
-        
+    //for (unsigned int i = 0; i < loadedModel.meshes.size(); i++)
+    //{
+    //    glm::mat4 model = glm::mat4(1.0f);
+    //    model = glm::translate(model, glm::vec3((i % 16) % 4,i / 16,(i % 16)/4) * 2.0f);
+    //    float angle = 20.0f * i;
+    //    model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
 
-    }
+    //    auto primitive = scene->CreateComponent<FPrimitiveComponent>();
+    //    
+    //    primitive->SetWorldTransform(model);
 
+    //    //为了方便展示，不同的渲染组件交替使用两个模型     
+    //    //if (i % 2)
+    //    {
+    //        primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
+    //    }
+    //    //else
+    //    //{ 
+    //    //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
+    //    //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
+    //    //}
+    //    primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
+    //    primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
+    //    primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
+    //    primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
+    //    primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
+    //    primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
+    //    
+
+    //} 
+
+
+
+    std::vector<char> planeWithNormalVertexData;
+    planeWithNormalVertexData.resize(sizeof(planeWithNormal));
+    memcpy(planeWithNormalVertexData.data(), planeWithNormal, planeWithNormalVertexData.size());
+    FPrimitiveVertexDesc planeWithNormalVertexDesc;
+    planeWithNormalVertexDesc.structSize = 6 * sizeof(float);
+    planeWithNormalVertexDesc.props.emplace_back(0, reinterpret_cast<void*>(0), GL_FLOAT, 3);//position
+    planeWithNormalVertexDesc.props.emplace_back(1, reinterpret_cast<void*>(3 * sizeof(float)), GL_FLOAT, 3);//Normal
+
+    
+    FPrimitiveRef planeWithNormalPrim = std::make_shared<FPrimitive>();
+    planeWithNormalPrim->SetData(planeWithNormalVertexData, indices, planeWithNormalVertexDesc);
+     
+
+    //auto basicShaderCubeComponent = scene->CreateComponent<FPrimitiveComponent>();
+    //basicShaderCubeComponent->AddPrimitiveUnit(planeWithNormalPrim, std::make_shared<FShader>(*ourShaderBasic));
+    //basicShaderCubeComponent->SetWorldLocation(glm::vec3(1, 5, -1));
+    //basicShaderCubeComponent->GetShader(0)->setVec4("InputColor", glm::vec4(0, 1, 0, 1));
+    //basicShaderCubeComponent->GetShader(0)->SetTexture("TestColor", FTexture::GetWhite());
 
     while (!glfwWindowShouldClose(window))
     {
