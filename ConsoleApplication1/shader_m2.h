@@ -26,6 +26,12 @@ enum class EBlendMethod
     BM_Additive,
 };
 
+enum class EPrimitiveMethod
+{
+    PM_Triangles = GL_TRIANGLES,
+    PM_TriangleStrip = GL_TRIANGLE_STRIP
+};
+
 struct FShaderVariantKey
 {
     std::vector<uint8_t> Keys;
@@ -339,7 +345,7 @@ class FShader
     std::map<std::string, glm::mat4> mat4Map;
     ECullMethod cullMethod = ECullMethod::CM_CullBack;
     EBlendMethod blendMothed = EBlendMethod::BM_NoBlend;
-
+    EPrimitiveMethod PrimitiveMethod = EPrimitiveMethod::PM_Triangles;
 
     void ApplyCullMethod() const
     {
@@ -512,6 +518,9 @@ class FShader
     std::map<std::string, bool> currentStatus;
 
 
+
+
+
     void SwitchShader()
     {
 	    if(internalShader->bValid)
@@ -546,6 +555,11 @@ class FShader
 public:
     
 
+    void setPrimitiveMethod(EPrimitiveMethod inM)
+    {
+        PrimitiveMethod = inM;
+    }
+    EPrimitiveMethod getPrimitiveMetohd() const { return PrimitiveMethod; }
     GLuint GetID() const
     {
         return CurrentID;

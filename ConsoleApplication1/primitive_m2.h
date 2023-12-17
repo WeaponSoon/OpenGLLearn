@@ -152,11 +152,11 @@ public:
 
             if (Primitive->GetNumOfIndices() > 0)
             {
-                glDrawElements(GL_TRIANGLES, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+                glDrawElements(PrimitiveMode, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
             }
             else
             {
-                glDrawArrays(GL_TRIANGLES, 0, Primitive->GetNumOfVertex());
+                glDrawArrays(PrimitiveMode, 0, Primitive->GetNumOfVertex());
             }
 
             glBindVertexArray(0);
@@ -254,6 +254,7 @@ public:
             render_batch.Shader = unit.Shader;
             render_batch.Primitive = unit.Primitive;
             render_batch.model = GetWorldTransform();
+            render_batch.PrimitiveMode = (GLenum)unit.Shader->getPrimitiveMetohd();
             outRenderBatch.push_back(render_batch);
         }
     }

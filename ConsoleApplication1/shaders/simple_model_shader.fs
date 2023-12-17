@@ -167,7 +167,7 @@ void main()
 	}
 
 	vec3 finalColor = (calColor * specular + EnvLightColor * albedo * ao);
-	FragColor = pow(vec4(finalColor/(finalColor + vec3(1)), 1), vec4(1.0/2.2));
+	FragColor = vec4(finalColor,1.0f);
 
 	//FragColor = vec4(TexCoord.x, TexCoord.y, 0, 1);
 	// linearly interpolate between both textures (80% container, 20% awesomeface)

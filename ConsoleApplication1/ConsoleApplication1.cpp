@@ -88,7 +88,7 @@ public:
 };
 
 
-void GenerateSphereModel(float inRadius, uint32_t inHorizantalSegments, uint32_t inVerticalSegments, std::vector<char>& outSphereData, FPrimitiveVertexDesc& outVertexDesc)
+void GenerateSphereModel(float inRadius, uint32_t inHorizantalSegments, uint32_t inVerticalSegments, std::vector<char>& outSphereData, std::vector<unsigned int>& outIndices, FPrimitiveVertexDesc& outVertexDesc)
 {
     std::vector<glm::vec3> positions;
     std::vector<glm::vec2> uv;
@@ -205,6 +205,8 @@ void GenerateSphereModel(float inRadius, uint32_t inHorizantalSegments, uint32_t
     outSphereData.clear();
     outSphereData.resize(data.size() * sizeof(float));
     memcpy(outSphereData.data(), data.data(), outSphereData.size());
+    outIndices.clear();
+    outIndices.swap(indices);
 }
 
 
@@ -330,7 +332,7 @@ int main()
     FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
     ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
-    FModel loadedModel("./objects/backpack/backpack.obj");
+    //FModel loadedModel("./objects/backpack/backpack.obj");
 
     glEnable(GL_DEPTH_TEST);
 
@@ -433,7 +435,7 @@ int main()
 
     scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.2f, 0.2f, 0.2f));
     glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
-    scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(10.f, 10.0f, 10.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
+    scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(1.f, 1.0f, 1.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
 
 
 
@@ -452,9 +454,24 @@ int main()
     //    tempShader->SetTexture("AO", pbrtex[4]);
     //}
 
+    std::vector<char> sphereData;
+    std::vector<unsigned int>  sphereIndices;
+    FPrimitiveVertexDesc shpereDesc;
+    GenerateSphereModel(1, 64, 64, sphereData, sphereIndices, shpereDesc);
+    FShaderRef sphereShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+    //sphereShader = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
+    FPrimitiveRef spherePrimitive = std::make_shared<FPrimitive>();
+    spherePrimitive->SetData(sphereData, sphereIndices, shpereDesc);
+    spherePrimitive->Bound.begin = glm::vec3(2, 2, 2);
+    spherePrimitive->Bound.end = glm::vec3(-2, -2, -2);
+    FTextureRef sphereAlbedo = std::make_shared<FTexture>("./objects/rusted_iron/albedo.png",ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_Linear);
+    FTextureRef sphereAO = std::make_shared<FTexture>("./objects/rusted_iron/ao.png",ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_Linear);
+    FTextureRef sphereMetal = std::make_shared<FTexture>("./objects/rusted_iron/metallic.png",ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_Linear);
+    FTextureRef sphereNormal = std::make_shared<FTexture>("./objects/rusted_iron/normal.png",ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_Linear);
+    FTextureRef sphereRough = std::make_shared<FTexture>("./objects/rusted_iron/roughness.png",ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_Linear);
 
     //再随便给场景添加10个渲染组件
-    for (int i = 0; i < loadedModel.meshes.size(); i++)
+    for (int i = 0; i < 20; i++)
     {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(-(i % 16) % 4, i / 16, (i % 16) / 4) * 2.0f);
@@ -468,7 +485,7 @@ int main()
         //为了方便展示，不同的渲染组件交替使用两个模型     
         //if (i % 2)
         {
-            primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
+            primitive->AddPrimitiveUnit(spherePrimitive, std::make_shared<FShader>(*sphereShader));
         }
         //else
         //{ 
@@ -476,12 +493,14 @@ int main()
         //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
         //}
         primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
-        primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
-        primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
-        primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
-        primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
-        primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
-
+        primitive->GetShader(0)->SetTexture("Albedo", sphereAlbedo); 
+        primitive->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
+        primitive->GetShader(0)->SetTexture("Roughness", sphereRough);
+        primitive->GetShader(0)->SetTexture("Metallic", sphereMetal);
+        primitive->GetShader(0)->SetTexture("AO", sphereAO);
+        primitive->GetShader(0)->SetTexture("NormalMap", sphereNormal);
+        primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",true);
+        primitive->GetShader(0)->setPrimitiveMethod(EPrimitiveMethod::PM_TriangleStrip);
 
     }
 
