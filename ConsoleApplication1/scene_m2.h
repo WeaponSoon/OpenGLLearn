@@ -419,13 +419,11 @@ class FSceneComponent : public FComponent, public IBVHTreeItem
     }
 
 	std::unordered_set<BVHTreeKey> Keys;
-	BVHBound BoundCache;
-
-
-	
 
 
 public:
+
+	BVHBound BoundCache;
 	void UpdateBoundCache();
 
 	virtual void OnUpdateBoundCache()

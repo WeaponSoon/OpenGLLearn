@@ -33,7 +33,7 @@ class FLightComponent : public FSceneComponent
 {
 public:
 
-
+	bool ShouldAdd() const override { return false; }
 	glm::vec3 lightColor;
 
 	FLightComponent() : lightColor(0)

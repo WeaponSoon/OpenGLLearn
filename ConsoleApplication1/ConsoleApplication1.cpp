@@ -390,7 +390,7 @@ int main()
 
       
      
-    //创建一个渲染组件，作为场景的一个地面
+    ////创建一个渲染组件，作为场景的一个地面
     //auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
     //groundComponent->AddPrimitiveUnit(ground, std::make_shared<FShader>(*ourShader));//地面用那个大一点的平面模型，方便起见用ourShader作为模板复制一份出来
 
@@ -400,7 +400,7 @@ int main()
     //groundComponent->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
     //groundComponent->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
     //groundComponent->GetShader(0)->SetTexture("AO", FTexture::GetWhite());
-     
+    // 
     //创建一个场景组件，并作为相机的子物体
     auto cameraFollower = scene->CreateComponent<FPrimitiveComponent>();
     cameraFollower->AddPrimitiveUnit(cube, std::make_shared<FShader>(*ourShader));//用立方体模型，方便起见用ourShader作为模板复制一份出来
@@ -437,53 +437,53 @@ int main()
 
 
 
-    auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
-    guitaComponent->SetWorldTransform(glm::mat4(1));
-    for(auto&& mod : loadedModel.meshes)
-    {  
-        auto tempShader = std::make_shared<FShader>(*ourShader2); 
-        guitaComponent->AddPrimitiveUnit(mod.primitive, tempShader);
-        tempShader->SetTexture("Emissive", FTexture::GetBlack());
-        tempShader->SetTexture("Albedo", pbrtex[0]);
-        tempShader->SetTexture("Specular", pbrtex[3]);
-        tempShader->SetTexture("Roughness", pbrtex[2]);
-        tempShader->SetTexture("NormalMap", pbrtex[1]);
-        tempShader->SetTexture("Metallic", FTexture::GetWhite());
-        tempShader->SetTexture("AO", pbrtex[4]);
-    }
-
-
-    ////再随便给场景添加10个渲染组件
-    //for (int i = 0; i < loadedModel.meshes.size(); i++)
-    //{
-    //    glm::mat4 model = glm::mat4(1.0f);
-    //    model = glm::translate(model, glm::vec3(-(i % 16) % 4, i / 16, (i % 16) / 4) * 2.0f);
-    //    float angle = 20.0f * i;
-    //    model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-
-    //    auto primitive = scene->CreateComponent<FPrimitiveComponent>();
-
-    //    primitive->SetWorldTransform(model);
-
-    //    //为了方便展示，不同的渲染组件交替使用两个模型     
-    //    //if (i % 2)
-    //    {
-    //        primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
-    //    }
-    //    //else
-    //    //{ 
-    //    //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
-    //    //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
-    //    //}
-    //    primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
-    //    primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
-    //    primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
-    //    primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
-    //    primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
-    //    primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
-
-
+    //auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
+    //guitaComponent->SetWorldTransform(glm::mat4(1));
+    //for(auto&& mod : loadedModel.meshes)
+    //{  
+    //    auto tempShader = std::make_shared<FShader>(*ourShader2); 
+    //    guitaComponent->AddPrimitiveUnit(mod.primitive, tempShader);
+    //    tempShader->SetTexture("Emissive", FTexture::GetBlack());
+    //    tempShader->SetTexture("Albedo", pbrtex[0]);
+    //    tempShader->SetTexture("Specular", pbrtex[3]);
+    //    tempShader->SetTexture("Roughness", pbrtex[2]);
+    //    tempShader->SetTexture("NormalMap", pbrtex[1]);
+    //    tempShader->SetTexture("Metallic", FTexture::GetWhite());
+    //    tempShader->SetTexture("AO", pbrtex[4]);
     //}
+
+
+    //再随便给场景添加10个渲染组件
+    for (int i = 0; i < loadedModel.meshes.size(); i++)
+    {
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(-(i % 16) % 4, i / 16, (i % 16) / 4) * 2.0f);
+        float angle = 20.0f * i;
+        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+
+        auto primitive = scene->CreateComponent<FPrimitiveComponent>();
+
+        primitive->SetWorldTransform(model);
+
+        //为了方便展示，不同的渲染组件交替使用两个模型     
+        //if (i % 2)
+        {
+            primitive->AddPrimitiveUnit(loadedModel.meshes[i].primitive, std::make_shared<FShader>(*ourShader2));
+        }
+        //else
+        //{ 
+        //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
+        //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
+        //}
+        primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
+        primitive->GetShader(0)->SetTexture("Albedo", pbrtex[0]);
+        primitive->GetShader(0)->SetTexture("Specular", FTexture::GetBlack());
+        primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
+        primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
+        primitive->GetShader(0)->SetTexture("AO", pbrtex[4]);
+
+
+    }
 
 
     //for (unsigned int i = 0; i < loadedModel.meshes.size(); i++)

@@ -758,14 +758,16 @@ void BVHTree::DrawDebug(glm::mat4 v, glm::mat4 p, glm::vec3 cameraPos)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	for(auto&& Node : Nodes)
 	{
+		
 		glm::mat4 sc = glm::scale(glm::mat4(1), glm::vec3(Node.Max - Node.Min));
-		glm::mat4 model = glm::translate(sc, Node.Center());
+		sc[3] = glm::vec4(Node.Center(), 1.0f);
+
 		
 		FRenderBatch Batch;
 		Batch.Shader = DebugShader;
 		Batch.Primitive = DebugPrim;
-		Batch.model = model;
-		Batch.PrimitiveMode = GL_LINE_LOOP;
+		Batch.model = sc;
+		Batch.PolygonMode = GL_LINE;
 		Batch.Draw_InputVP(v, p, cameraPos);
 	}
 
@@ -943,10 +945,89 @@ void FCameraComponent::DrawDeferred() const
     }
 }
 
+struct FFrustum
+{
+	glm::vec4 planes[6];//up, down, r, l, n, f
+};
+
+FFrustum GetFrustum(float fovy, float aspectRatio, float far, float near, float width, glm::mat4 trans)
+{
+	FFrustum ret = {};
+	if(fovy <= 0)
+	{
+
+		return ret;
+
+	}
+	else
+	{
+		float fovyrh = glm::radians(fovy) * 0.5f;
+
+
+		float s = glm::sin(fovyrh);
+		float c = glm::cos(fovyrh);
+		{//up
+			glm::vec3 f(0, s, -c);
+			glm::vec3 unl = glm::cross(glm::vec3(1, 0, 0), f);
+
+			glm::vec3 unw = trans * glm::vec4(unl, 0);
+			float w = -(unw.x * trans[3].x + unw.y * trans[3].y + unw.z * trans[3].z);
+			ret.planes[0] = glm::vec4(unw, w);
+		}
+		{//down
+			glm::vec3 f(0, -s, -c);
+			glm::vec3 unl = glm::cross(glm::vec3(-1, 0, 0), f);
+
+			glm::vec3 unw = trans * glm::vec4(unl, 0);
+			float w = -(unw.x * trans[3].x + unw.y * trans[3].y + unw.z * trans[3].z);
+			ret.planes[1] = glm::vec4(unw, w);
+		}
+		{//right
+			glm::vec3 f(s * aspectRatio, 0, -c);
+			glm::vec3 unl = glm::cross(glm::vec3(0, -1, 0), f);
+
+			glm::vec3 unw = trans * glm::vec4(unl, 0);
+			float w = -(unw.x * trans[3].x + unw.y * trans[3].y + unw.z * trans[3].z);
+			ret.planes[2] = glm::vec4(unw, w);
+		}
+		{//left
+			glm::vec3 f(-s * aspectRatio, 0, -c);
+			glm::vec3 unl = glm::cross(glm::vec3(0, 1, 0), f);
+
+			glm::vec3 unw = trans * glm::vec4(unl, 0);
+			float w = -(unw.x * trans[3].x + unw.y * trans[3].y + unw.z * trans[3].z);
+			ret.planes[3] = glm::vec4(unw, w);
+		}
+		{//near
+			glm::vec3 unl(0, 0, 1);// = glm::cross(glm::vec3(0, 1, 0), f);
+
+			glm::vec3 posOnNearLocal(0, 0, -near);
+			glm::vec3 posOnNearWorld = trans * glm::vec4(posOnNearLocal, 1);
+
+			glm::vec3 unw = trans * glm::vec4(unl, 0);
+			float w = -(unw.x * posOnNearWorld.x + unw.y * posOnNearWorld.y + unw.z * posOnNearWorld.z);
+			ret.planes[4] = glm::vec4(unw, w);
+		}
+		{//far
+			glm::vec3 unl(0, 0, -1);// = glm::cross(glm::vec3(0, 1, 0), f);
+
+			glm::vec3 posOnFarLocal(0, 0, -far);
+			glm::vec3 posOnFarWorld = trans * glm::vec4(posOnFarLocal, 1);
+
+			glm::vec3 unw = trans * glm::vec4(unl, 0);
+			float w = -(unw.x * posOnFarWorld.x + unw.y * posOnFarWorld.y + unw.z * posOnFarWorld.z);
+			ret.planes[5] = glm::vec4(unw, w);
+		}
+		return ret;
+	}
+}
+
 void FCameraComponent::Draw() const
 {
     std::vector<FRenderBatch> renderBatches;
     std::vector<FLightRenderBatch> lights;
+
+	auto frust = GetFrustum(Zoom, aspectRatio, farPlane, nearPlane,0, GetWorldTransform());
 
     auto safe_scene = scene.lock();
     auto&& allComponents = safe_scene->GetAllComponents();
@@ -959,14 +1040,88 @@ void FCameraComponent::Draw() const
             {
                 if (ignorePrimitives.find(primitiveComponent) == ignorePrimitives.end())
                 {
-                    primitiveComponent->GenerateRenderBatch(renderBatches);
+					glm::vec3 extent = primitiveComponent->BoundCache.end - primitiveComponent->BoundCache.Center();
+					glm::vec3 vers[8] =
+					{
+						primitiveComponent->BoundCache.Center() + extent,
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(1,-1,1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(1,-1,-1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(1,1,-1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,1,1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,-1,1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,-1,-1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,1,-1),
+					};
+					bool shouldCull = false;
+					for(int pli = 0; pli < 6; ++pli)
+					{
+						bool inNegtivePlane = false;
+						for(int pvi = 0; pvi < 8; ++pvi)
+						{
+							if(frust.planes[pli].x * vers[pvi].x +
+								frust.planes[pli].y * vers[pvi].y + 
+								frust.planes[pli].z * vers[pvi].z +
+								frust.planes[pli].w <= 0)
+							{
+								inNegtivePlane = true;
+								break;
+							}
+						}
+
+						if(!inNegtivePlane)
+						{
+							shouldCull = true;
+							break;
+						}
+					}
+					if(!shouldCull)
+					{
+						primitiveComponent->GenerateRenderBatch(renderBatches);
+					}
                 }
             }
             else
             {
                 if (renderOnlyPrimitives.find(primitiveComponent) != renderOnlyPrimitives.end())
                 {
-                    primitiveComponent->GenerateRenderBatch(renderBatches);
+					glm::vec3 extent = primitiveComponent->BoundCache.end - primitiveComponent->BoundCache.Center();
+					glm::vec3 vers[8] =
+					{
+						BoundCache.Center() + extent,
+						BoundCache.Center() + extent * glm::vec3(1,-1,1),
+						BoundCache.Center() + extent * glm::vec3(1,-1,-1),
+						BoundCache.Center() + extent * glm::vec3(1,1,-1),
+						BoundCache.Center() + extent * glm::vec3(-1,1,1),
+						BoundCache.Center() + extent * glm::vec3(-1,-1,1),
+						BoundCache.Center() + extent * glm::vec3(-1,-1,-1),
+						BoundCache.Center() + extent * glm::vec3(-1,1,-1),
+					};
+					bool shouldCull = false;
+					for (int pli = 0; pli < 6; ++pli)
+					{
+						bool inNegtivePlane = false;
+						for (int pvi = 0; pvi < 8; ++pvi)
+						{
+							if (frust.planes[pli].x * vers[pvi].x +
+								frust.planes[pli].y * vers[pvi].y +
+								frust.planes[pli].z * vers[pvi].z +
+								frust.planes[pli].w <= 0)
+							{
+								inNegtivePlane = true;
+								break;
+							}
+						}
+
+						if (!inNegtivePlane)
+						{
+							shouldCull = true;
+							break;
+						}
+					}
+					if(!shouldCull)
+					{
+						primitiveComponent->GenerateRenderBatch(renderBatches);
+					}
                 }
             }
         }

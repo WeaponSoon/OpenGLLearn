@@ -130,6 +130,18 @@ private:
 		std::vector<unsigned int> indices;
         std::vector<FTextureRef> textures;
 
+        glm::vec3 minPos(-0.1f);
+        glm::vec3 maxPos(0.1f);
+
+        if(mesh->mNumVertices > 0)
+        {
+            minPos.x = maxPos.x = mesh->mVertices[0].x;
+            minPos.y = maxPos.y = mesh->mVertices[0].y;
+            minPos.z = maxPos.z = mesh->mVertices[0].z;
+            minPos -= glm::vec3(0.1f);
+            maxPos += glm::vec3(0.1f);
+        }
+
         // walk through each of the mesh's vertices
         for(unsigned int i = 0; i < mesh->mNumVertices; i++)
         {
@@ -140,6 +152,15 @@ private:
             vector.y = mesh->mVertices[i].y;
             vector.z = mesh->mVertices[i].z;
             vertex.Position = vector;
+
+            minPos.x = glm::min(minPos.x, vector.x);
+            minPos.y = glm::min(minPos.y, vector.y);
+            minPos.z = glm::min(minPos.z, vector.z);
+
+            maxPos.x = glm::max(maxPos.x, vector.x);
+            maxPos.y = glm::max(maxPos.y, vector.y);
+            maxPos.z = glm::max(maxPos.z, vector.z);
+
             // normals
             if (mesh->HasNormals())
             {
@@ -208,7 +229,8 @@ private:
         result.textures = std::move(textures);
         result.primitive = std::make_shared<FPrimitive>();
         result.primitive->SetDataByStruct(vertices, indices);
-        
+        result.primitive->Bound.begin = minPos;
+        result.primitive->Bound.end = maxPos;
         //desc.props.push_back()
 
         // return a mesh object created from the extracted mesh data

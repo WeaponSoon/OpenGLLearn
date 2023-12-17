@@ -34,6 +34,8 @@ class FPrimitive
     int numOfIndices = 0;
 public:
 
+    BVHBound Bound;
+
     template<typename T>
     void SetDataByStruct(const std::vector<T>& vertexData, const std::vector<unsigned int>& indicesData)
     {
@@ -108,6 +110,7 @@ public:
     FShaderRef Shader;
     glm::mat4 model;
     GLenum PrimitiveMode = GL_TRIANGLES;
+    GLenum PolygonMode = GL_FILL;
     void Draw_InputVP(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& cameraPos)
     {
         if (Primitive && Shader)
@@ -118,6 +121,8 @@ public:
             Shader->setVec3("cameraPos", cameraPos);
             Shader->use();
             Primitive->use();
+
+            glPolygonMode(GL_FRONT_AND_BACK, PolygonMode);
 
             if (Primitive->GetNumOfIndices() > 0)
             {
@@ -164,7 +169,7 @@ struct FPrimitiveUnit
 {
     FPrimitiveRef Primitive;
     FShaderRef Shader;
-
+    BVHBound Bound;
     FPrimitiveUnit(FPrimitiveRef inPrimitive, FShaderRef inShader) : Primitive(inPrimitive), Shader(inShader)
     {
 
@@ -175,6 +180,39 @@ class FPrimitiveComponent : public FSceneComponent
 {
     std::vector<FPrimitiveUnit> primitives;
 public:
+
+    virtual void OnUpdateBoundCache() override
+    {
+        if(!primitives.empty())
+        {
+            BVHBound Bound = primitives[0].Primitive->Bound;
+
+            {
+                glm::vec3 newCenter = GetWorldTransform() * glm::vec4(Bound.Center(), 1);
+                glm::vec3 newExtent = glm::abs(GetWorldTransform() * glm::vec4(Bound.end - Bound.Center(), 0));
+                Bound.begin = newCenter - newExtent;
+                Bound.end = newCenter + newExtent;
+                primitives[0].Bound = Bound;
+            }
+            
+            for(int pi = 1; pi < primitives.size(); ++pi)
+            {
+                BVHBound TempBound = primitives[pi].Primitive->Bound;
+                glm::vec3 newCenter = GetWorldTransform() * glm::vec4(TempBound.Center(), 1);
+                glm::vec3 newExtent = glm::abs(GetWorldTransform() * glm::vec4(TempBound.end - TempBound.Center(), 0));
+                TempBound.begin = newCenter - newExtent;
+                TempBound.end = newCenter + newExtent;
+                Bound.begin = glm::min(Bound.begin, TempBound.begin);
+                Bound.end = glm::max(Bound.end, TempBound.end);
+                primitives[pi].Bound = Bound;
+            }
+            BoundCache = Bound;
+        }
+        else
+        {
+            return FSceneComponent::OnUpdateBoundCache();
+        }
+    }
 
     virtual size_t GetPrimitiveCount() const
     {
@@ -194,6 +232,7 @@ public:
     virtual void SetPrimitive(int id, FPrimitiveRef inPrimitive)
     {
         primitives[id].Primitive = inPrimitive;
+        UpdateBoundCache();
     }
 
     virtual void SetShader(int id, FShaderRef inShader)
@@ -204,6 +243,7 @@ public:
     virtual void AddPrimitiveUnit(FPrimitiveRef inPrimitve, FShaderRef inShader)
     {
         primitives.emplace_back(inPrimitve, inShader);
+        UpdateBoundCache();
     }
 
     virtual void GenerateRenderBatch(std::vector<FRenderBatch>& outRenderBatch) const
