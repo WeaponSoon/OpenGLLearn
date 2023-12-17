@@ -5,6 +5,7 @@ layout (location = 1) out highp vec4 gWorldPosMetallic;
 layout (location = 2) out vec4 gAlbedoSpec;
 layout (location = 3) out vec4 gWorldNormalRoughness;
 
+/*<Switch=USE_NORMAL_MAP,Version=330>*/
 
 in vec2 TexCoord;
 in highp vec3 WorldPosition;
@@ -19,7 +20,9 @@ uniform sampler2D Roughness;
 uniform sampler2D Metallic;
 uniform sampler2D AO;
 uniform sampler2D Emissive;
-
+#if USE_NORMAL_MAP
+uniform sampler2D NormalMap;
+#endif
 
 
 const float PI = 3.14159265359;
@@ -55,10 +58,21 @@ vec3 GetEmissive(vec2 InUV)
     return texture(Emissive, InUV).rgb;
 }
 
+vec3 GetNormal(vec2 InUV)
+{
+#if USE_NORMAL_MAP
+	vec3 tangentNormal = texture(NormalMap, InUV).xyz;
+    mat3 TBN = mat3(WorldTangent, WorldBitangnet, WorldNormal);
+    return normalize(TBN * tangentNormal);
+#else
+	return WorldNormal.xyz;
+#endif
+}
+
 void main()
 {
     gEmissiveAO = vec4(GetEmissive(TexCoord).rgb, GetAO(TexCoord).r);
     gWorldPosMetallic = vec4(WorldPosition.xyz, GetMetallic(TexCoord));
     gAlbedoSpec = vec4(GetAlbedo(TexCoord).rgb, GetSpecular(TexCoord).r);
-    gWorldNormalRoughness = vec4(WorldNormal.xyz, GetRoughness(TexCoord));
+    gWorldNormalRoughness = vec4(GetNormal(TexCoord), GetRoughness(TexCoord));
 }

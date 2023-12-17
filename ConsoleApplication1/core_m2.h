@@ -20,14 +20,36 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+
+template<typename T, typename Ret, typename...Args>
+struct HasInit
+{
+	template<typename C, Ret(C::*)(Args...) = &C::Init>
+    static constexpr bool Check(C*) { return true; }
+    static constexpr bool Check(...) { return false; }
+
+    enum
+    {
+        value = Check((T*)nullptr),
+	};
+
+};
+
+
+class FVeryBase : public std::enable_shared_from_this<FVeryBase>
+{
+public:
+    virtual ~FVeryBase() = default;
+};
+
 template<typename T>
-class TInterface : virtual public std::enable_shared_from_this<TInterface<T>>
+class TInterface : virtual public FVeryBase
 {
 public:
     virtual ~TInterface() = default;
 };
 
-class FObject : virtual public std::enable_shared_from_this<FObject>
+class FObject : virtual public FVeryBase
 {
     static long long int GenComponentID();
     long long int objId = -1;
@@ -38,6 +60,12 @@ public:
     }
     long long int GetObjectId() const { return objId; }
     virtual ~FObject() = default;
+
+    std::shared_ptr<FObject> GetObject() const
+    {
+        return std::dynamic_pointer_cast<FObject>(std::const_pointer_cast<FVeryBase>(shared_from_this()));
+    }
+
 };
 
 class FComponentSubobject : public FObject
@@ -71,7 +99,7 @@ public:
     {
         std::shared_ptr<T> ret = std::make_shared<T>();
         subobjects.push_back(ret);
-        ret->owner = std::static_pointer_cast<FComponent>(this->shared_from_this());
+        ret->owner = std::static_pointer_cast<FComponent>(this->GetObject());
         ret->Init();
         return ret;
     }
@@ -81,7 +109,7 @@ public:
     {
         std::shared_ptr<T> ret = std::make_shared<T>(std::forward<Args>(args)...);
         subobjects.push_back(ret);
-        ret->owner = std::static_pointer_cast<FComponent>(this->shared_from_this());
+        ret->owner = std::static_pointer_cast<FComponent>(this->GetObject());
         ret->Init();
         return ret;
     }

@@ -107,7 +107,7 @@ public:
     FPrimitiveRef Primitive;
     FShaderRef Shader;
     glm::mat4 model;
-
+    GLenum PrimitiveMode = GL_TRIANGLES;
     void Draw_InputVP(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& cameraPos)
     {
         if (Primitive && Shader)
@@ -121,11 +121,11 @@ public:
 
             if (Primitive->GetNumOfIndices() > 0)
             {
-                glDrawElements(GL_TRIANGLES, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+                glDrawElements(PrimitiveMode, Primitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
             }
             else
             {
-                glDrawArrays(GL_TRIANGLES, 0, Primitive->GetNumOfVertex());
+                glDrawArrays(PrimitiveMode, 0, Primitive->GetNumOfVertex());
             }
 
             glBindVertexArray(0);

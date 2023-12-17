@@ -19,6 +19,7 @@ uniform vec3 EnvLightColor;
 
 uniform highp vec3 cameraPos;
 
+/*<Switch=USE_NORMAL_MAP,Version=330>*/
 
 // texture samplers
 uniform sampler2D Albedo;
@@ -27,6 +28,9 @@ uniform sampler2D Roughness;
 uniform sampler2D Metallic;
 uniform sampler2D AO;
 
+#if USE_NORMAL_MAP
+uniform sampler2D NormalMap;
+#endif
 
 
 const float PI = 3.14159265359;
@@ -55,6 +59,17 @@ float GetMetallic(vec2 InUV)
 vec3 GetAO(vec2 InUV)
 {
 	return texture(AO, InUV).rrr;
+}
+
+vec3 GetNormal(vec2 InUV)
+{
+#if USE_NORMAL_MAP
+	vec3 tangentNormal = texture(NormalMap, InUV).xyz;
+    mat3 TBN = mat3(WorldTangent, WorldBitangnet, WorldNormal);
+    return normalize(TBN * tangentNormal);
+#else
+	return WorldNormal.xyz;
+#endif
 }
 
 float CalcNDF(vec3 N, vec3 H, float roughness)
@@ -99,7 +114,7 @@ void main()
 	float metallic = GetMetallic(TexCoord);
 	vec3 ao = GetAO(TexCoord);
 	vec3 specular = GetSpecular(TexCoord);
-
+	vec3 normal = GetNormal(TexCoord);
 	highp vec3 viewVector = (cameraPos - WorldPosition);
 	vec3 viewDir = normalize(viewVector);
 
@@ -114,18 +129,18 @@ void main()
 		vec3 H = normalize(viewDir + L);
 		vec3 LC = DirectionalLightColor;
 
-		float D = CalcNDF(WorldNormal, H, roughness);
-		float G = CalcGeometryOcculicionBothDirection(WorldNormal, viewDir, L, roughness);
-		vec3 F = CalcFreshnel(clamp(dot(WorldNormal, viewDir), 0.0, 1.0), F0);
+		float D = CalcNDF(normal, H, roughness);
+		float G = CalcGeometryOcculicionBothDirection(normal, viewDir, L, roughness);
+		vec3 F = CalcFreshnel(clamp(dot(normal, viewDir), 0.0, 1.0), F0);
 
 		vec3 upPart = D * G * F;
-		float downPart = 4*max(dot(WorldNormal,viewDir),0.0)*max(dot(WorldNormal,L),0.0) + 0.01;
+		float downPart = 4*max(dot(normal,viewDir),0.0)*max(dot(normal,L),0.0) + 0.01;
 		vec3 specularPart = upPart / downPart;
 
 		vec3 kS = F;
 		vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
-		calColor = (kD * albedo * InvPI + specularPart) * LC * max(dot(WorldNormal, L),0.0);
+		calColor = (kD * albedo * InvPI + specularPart) * LC * max(dot(normal, L),0.0);
 	}
 
 
@@ -137,18 +152,18 @@ void main()
 		float p2lLengh = length(PointLightLocationAndRadius[i].xyz - WorldPosition);
 		vec3 LC = PointLightColor[i] / (p2lLengh * p2lLengh);
 
-		float D = CalcNDF(WorldNormal, H, roughness);
-		float G = CalcGeometryOcculicionBothDirection(WorldNormal, viewDir, L, roughness);
-		vec3 F = CalcFreshnel(clamp(dot(WorldNormal, viewDir), 0.0, 1.0), F0);
+		float D = CalcNDF(normal, H, roughness);
+		float G = CalcGeometryOcculicionBothDirection(normal, viewDir, L, roughness);
+		vec3 F = CalcFreshnel(clamp(dot(normal, viewDir), 0.0, 1.0), F0);
 
 		vec3 upPart = D * G * F;
-		float downPart = 4*max(dot(WorldNormal,viewDir),0.0)*max(dot(WorldNormal,L),0.0) + 0.01;
+		float downPart = 4*max(dot(normal,viewDir),0.0)*max(dot(normal,L),0.0) + 0.01;
 		vec3 specularPart = upPart / downPart;
 
 		vec3 kS = F;
 		vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
-		calColor += (kD * albedo * InvPI + specularPart) * LC * max(dot(WorldNormal, L),0.0);
+		calColor += (kD * albedo * InvPI + specularPart) * LC * max(dot(normal, L),0.0);
 	}
 
 	vec3 finalColor = (calColor * specular + EnvLightColor * albedo * ao);

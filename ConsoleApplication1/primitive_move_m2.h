@@ -41,7 +41,7 @@ public:
         key.objId = sceneCompOwner.lock()->GetObjectId();
 
         auto&& inputHandle = FInputReceiver::GetInputReceiver().keyHandles[key];
-        std::weak_ptr<FSimpleImputMoveComponentSubobject> weakThis = std::static_pointer_cast<FSimpleImputMoveComponentSubobject>(this->shared_from_this());
+        std::weak_ptr<FSimpleImputMoveComponentSubobject> weakThis = std::static_pointer_cast<FSimpleImputMoveComponentSubobject>(this->GetObject());
         inputHandle.mouseCallback = [weakThis](double prePosX, double prePosY, double curPosX, double curPosY)->void
         {
             std::shared_ptr<FSimpleImputMoveComponentSubobject> safeThis = weakThis.lock();

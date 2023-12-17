@@ -50,7 +50,7 @@ public:
     FFrameBufferRef gBufferRef;
     FFrameBufferRef gFlipBufferRefs[1];
 
-    bool bDeferredPipeline = false;
+    bool bDeferredPipeline = true;
 
     void AdjustGBuffer();
 
@@ -60,10 +60,12 @@ public:
     float farPlane = 100.f;
     float aspectRatio = 1.33f;
 
-    float Zoom;
+    float Zoom = 90;
 
     // constructor with vectors
-    FCameraComponent(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f));
+    FCameraComponent() = default;
+
+    void Init(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f));
 
     ~FCameraComponent() override
     {
@@ -78,7 +80,7 @@ public:
             DrawDeferred();
         }
     }
-
+    bool ShouldAdd() const override { return false; }
     void DrawDeferred() const;
 
     void Draw() const;
@@ -102,7 +104,6 @@ public:
         ret.project = GetProjectionMatrix();
         return ret;
     }
-
 
 };
 

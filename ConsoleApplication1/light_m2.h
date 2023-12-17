@@ -36,9 +36,14 @@ public:
 
 	glm::vec3 lightColor;
 
-	FLightComponent(glm::vec3 inLightColor) : lightColor(inLightColor)
+	FLightComponent() : lightColor(0)
 	{
 		
+	}
+
+	void Init(glm::vec3 inLightColor)
+	{
+		lightColor = inLightColor;
 	}
 
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement)
@@ -52,10 +57,14 @@ class FEnvLightComponent : public FLightComponent
 public:
 	static std::shared_ptr<FShader> EnvLightDeferredShader;
 	static std::shared_ptr<FPrimitive> EnvLightDeferredGeo;
-	FEnvLightComponent(glm::vec3 inLightColor) : FLightComponent(inLightColor)
+	FEnvLightComponent() = default;
+	
+
+	void Init(glm::vec3 inLightColor)
 	{
-		
+		FLightComponent::Init(inLightColor);
 	}
+
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
 	{
 		outElement.emplace_back(ELightType::LT_Env, lightColor, GetFowardInWorldSpace(), GetWorldLocation(), 0.0f, nullptr,100.0f,1);
@@ -95,9 +104,15 @@ public:
 		}
 	}
 
-	FDirectionalLightComponent(glm::vec3 inLightColor, glm::quat inRotation) : FLightComponent(inLightColor), baseShadowMapSize(2048), numOfCSM(1), lightmapDistance(10.f)
+	FDirectionalLightComponent() :  baseShadowMapSize(2048), numOfCSM(1), lightmapDistance(10.f)
 		, shadowMap(std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA))
 	{
+		
+	}
+
+	void Init(glm::vec3 inLightColor, glm::quat inRotation)
+	{
+		FLightComponent::Init(inLightColor);
 		SetWorldTransform(glm::mat4_cast(inRotation));
 	}
 
@@ -116,11 +131,15 @@ public:
 
 	glm::vec3 pointLightParam;
 
-	float radius;
+	float radius = 0;
 
-	FPointLightComponent(glm::vec3 inLightColor, glm::vec3 inLightLocation, glm::vec3 inPointLightParam, float inRadius) : FLightComponent(inLightColor), pointLightParam(inPointLightParam), radius(inRadius)
+	FPointLightComponent() = default;
+
+	void Init(glm::vec3 inLightColor, glm::vec3 inLightLocation, glm::vec3 inPointLightParam, float inRadius)
 	{
+		pointLightParam = inPointLightParam;
 		SetWorldLocation(inLightLocation);
+		radius = inRadius;
 	}
 
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override

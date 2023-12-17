@@ -110,6 +110,8 @@ class FShader
 
         std::unordered_map<std::string, size_t> switchNameToPos;
 
+        std::string glslVersion = "330";
+
         FInternalShader() = default;
         FInternalShader(const FInternalShader&) = delete;
         FInternalShader(FInternalShader&&) = delete;
@@ -154,7 +156,9 @@ class FShader
                     // vertex shader
                     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
                     std::string defs;
-                    defs += "#version 330 core\n";
+                    defs += "#version ";
+                    defs += glslVersion;
+                    defs += " core\n";
                     for (auto&& item : switchNameToPos)
                     {
                         defs += "#define ";
@@ -193,7 +197,9 @@ class FShader
                     // vertex shader
                     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
                     std::string defs;
-                    defs += "#version 330 core\n";
+                    defs += "#version ";
+                    defs += glslVersion;
+                    defs += " core\n";
                     for (auto&& item : switchNameToPos)
                     {
                         defs += "#define ";
@@ -273,6 +279,7 @@ class FShader
                 }
                 size_t curPos = 0;
                 std::regex rg_switch("Switch=[a-zA-Z]\\w*(,|$)");
+                std::regex rg_version("Version=\\d+(,|$)");
                 for(auto&& cokl : tokenLines)
                 {
                     for (std::sregex_iterator It(cokl.begin()+3, cokl.end()-1, rg_switch), end; It != end; ++It)
@@ -288,7 +295,16 @@ class FShader
                             curPos++;
                         }
                     }
+                    for (std::sregex_iterator It(cokl.begin() + 3, cokl.end() - 1, rg_version), end; It != end; ++It)
+                    {
+                        std::string ktm = It->str(0);
+
+                        std::string ktmf(ktm.begin() + 8, ktm[ktm.size() - 1] == ',' ? ktm.end() - 1 : ktm.end());
+
+                        glslVersion = ktmf;
+                    }
                 }
+                
 
             }
             

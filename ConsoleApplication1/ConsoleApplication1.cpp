@@ -44,7 +44,7 @@ public:
         key.objId = dirRef.lock()->GetObjectId();
 
         auto&& inputHandle = FInputReceiver::GetInputReceiver().keyHandles[key];
-        std::weak_ptr<FTestLightControlSubobject> weakThis = std::static_pointer_cast<FTestLightControlSubobject>(this->shared_from_this());
+        std::weak_ptr<FTestLightControlSubobject> weakThis = std::static_pointer_cast<FTestLightControlSubobject>(this->GetObject());
 
         inputHandle.repeatCallback = [weakThis](int key)->void
         {
@@ -328,7 +328,7 @@ int main()
     }
      
     FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
-    //FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+    ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
     FModel loadedModel("./objects/backpack/backpack.obj");
 
@@ -365,7 +365,7 @@ int main()
 
     //创建一个Shader作为模板 
     FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
-    //FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+    ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
     FShaderRef ourShaderBasic = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/basic_shader.fs");
     ourShaderBasic->setSwitch("Test1", true);
@@ -382,7 +382,7 @@ int main()
     //给场景添加一个相机
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
     cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
-    cameraComp->bDeferredPipeline = false;
+    cameraComp->bDeferredPipeline = true;
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
      
@@ -391,15 +391,15 @@ int main()
       
      
     //创建一个渲染组件，作为场景的一个地面
-    auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
-    groundComponent->AddPrimitiveUnit(ground, std::make_shared<FShader>(*ourShader));//地面用那个大一点的平面模型，方便起见用ourShader作为模板复制一份出来
+    //auto groundComponent = scene->CreateComponent<FPrimitiveComponent>();
+    //groundComponent->AddPrimitiveUnit(ground, std::make_shared<FShader>(*ourShader));//地面用那个大一点的平面模型，方便起见用ourShader作为模板复制一份出来
 
-    groundComponent->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
-    groundComponent->GetShader(0)->SetTexture("Albedo", tex[0]);
-    groundComponent->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
-    groundComponent->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
-    groundComponent->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
-    groundComponent->GetShader(0)->SetTexture("AO", FTexture::GetWhite());
+    //groundComponent->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
+    //groundComponent->GetShader(0)->SetTexture("Albedo", tex[0]);
+    //groundComponent->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
+    //groundComponent->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite());
+    //groundComponent->GetShader(0)->SetTexture("Metallic", FTexture::GetWhite());
+    //groundComponent->GetShader(0)->SetTexture("AO", FTexture::GetWhite());
      
     //创建一个场景组件，并作为相机的子物体
     auto cameraFollower = scene->CreateComponent<FPrimitiveComponent>();
@@ -431,7 +431,7 @@ int main()
     pbrtex[4] = std::make_shared<FTexture>("./objects/backpack/ao.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
 
 
-    scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.02f, 0.02f, 0.02f));
+    scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.2f, 0.2f, 0.2f));
     glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
     scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(10.f, 10.0f, 10.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
 
@@ -447,6 +447,7 @@ int main()
         tempShader->SetTexture("Albedo", pbrtex[0]);
         tempShader->SetTexture("Specular", pbrtex[3]);
         tempShader->SetTexture("Roughness", pbrtex[2]);
+        tempShader->SetTexture("NormalMap", pbrtex[1]);
         tempShader->SetTexture("Metallic", FTexture::GetWhite());
         tempShader->SetTexture("AO", pbrtex[4]);
     }
@@ -536,7 +537,7 @@ int main()
     //basicShaderCubeComponent->SetWorldLocation(glm::vec3(1, 5, -1));
     //basicShaderCubeComponent->GetShader(0)->setVec4("InputColor", glm::vec4(0, 1, 0, 1));
     //basicShaderCubeComponent->GetShader(0)->SetTexture("TestColor", FTexture::GetWhite());
-
+    //basicShaderCubeComponent->GetShader(0)->setSwitch("Test1", true);
     while (!glfwWindowShouldClose(window))
     {
         float currentFrame = static_cast<float>(glfwGetTime());
