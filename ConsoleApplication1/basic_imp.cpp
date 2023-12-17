@@ -809,7 +809,7 @@ void FSceneComponent::FinalTick(float deltaSecond)
 
 void FScene::DrawDebug(glm::mat4 v, glm::mat4 p, glm::vec3 cp)
 {
-	Tree->DrawDebug(v, p, cp);
+	//Tree->DrawDebug(v, p, cp);
 }
 
 
