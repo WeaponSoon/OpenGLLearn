@@ -32,6 +32,12 @@ enum class EPrimitiveMethod
     PM_TriangleStrip = GL_TRIANGLE_STRIP
 };
 
+enum class EDepthRightStatus
+{
+    DWE_Enable,
+    DWE_Disable
+};
+
 struct FShaderVariantKey
 {
     std::vector<uint8_t> Keys;
@@ -330,7 +336,8 @@ class FShader
     struct TextureMark
     {
         int slot = -1;
-        FTextureRef texture;
+        GLenum textureType = GL_TEXTURE_2D;
+        ITextureRef texture;
     };
     mutable int textureSlot = -1;
     std::map<std::string, TextureMark> textureMap;
@@ -346,7 +353,7 @@ class FShader
     ECullMethod cullMethod = ECullMethod::CM_CullBack;
     EBlendMethod blendMothed = EBlendMethod::BM_NoBlend;
     EPrimitiveMethod PrimitiveMethod = EPrimitiveMethod::PM_Triangles;
-
+    EDepthRightStatus DepthWrite = EDepthRightStatus::DWE_Enable;
     void ApplyCullMethod() const
     {
 	    switch (cullMethod)
@@ -387,6 +394,19 @@ class FShader
 	    }
     }
 
+    void ApplyDepthWrite() const
+    {
+	    switch (DepthWrite)
+	    {
+	    case EDepthRightStatus::DWE_Enable:
+            glDepthMask(GL_TRUE);
+            break;
+        case EDepthRightStatus::DWE_Disable:
+            glDepthMask(GL_FALSE);
+            break;
+	    }
+    }
+
     bool IsUsing() const
     {
         GLint currentProgram = GL_NONE;
@@ -402,6 +422,7 @@ class FShader
 
         ApplyCullMethod();
         ApplyBlendMethod();
+        ApplyDepthWrite();
         {
             for (auto&& pair : textureMap)
             {
@@ -411,7 +432,7 @@ class FShader
                     if(Loc >= 0)
                     {
                         glActiveTexture(GL_TEXTURE0 + pair.second.slot);
-                        glBindTexture(GL_TEXTURE_2D, pair.second.texture->ID);
+                        glBindTexture(pair.second.textureType, pair.second.texture->ID);
                         glUniform1i(Loc, pair.second.slot);
                     }
                 }
@@ -553,7 +574,11 @@ class FShader
     }
 
 public:
-    
+
+    void setDepthWriteEnable(EDepthRightStatus InD)
+    {
+        DepthWrite = InD;
+    }
 
     void setPrimitiveMethod(EPrimitiveMethod inM)
     {
@@ -731,6 +756,20 @@ public:
 
         return true;
         
+    }
+
+    bool SetTextureCube(const std::string& name, const FCubeTextureRef& inTexture)
+    {
+        auto&& textureStruct = textureMap[name];
+        if (textureStruct.slot < 0)
+        {
+            textureStruct.textureType = GL_TEXTURE_CUBE_MAP;
+            textureStruct.slot = ++textureSlot;
+        }
+        textureStruct.texture = inTexture;
+
+        return true;
+
     }
 
 private:

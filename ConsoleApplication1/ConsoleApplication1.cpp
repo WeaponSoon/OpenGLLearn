@@ -371,8 +371,14 @@ int main()
 
     FShaderRef ourShaderBasic = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/basic_shader.fs");
     ourShaderBasic->setSwitch("Test1", true);
-    ourShaderBasic->setSwitch("Test1", false);
 
+    FShaderRef ourShaderBasicToRenderCubemap = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/texture_to_cube.fs");
+    ourShaderBasicToRenderCubemap->SetCullMethod(ECullMethod::CM_None);
+
+    FTextureRef envTex = std::make_shared<FTexture>("objects/rusted_iron/EpicQuadPanorama_CC+EV1.HDR", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_Linear);
+    ourShaderBasicToRenderCubemap->SetTexture("equirectangularMap", envTex);
+    FCubeTextureRef cubeTexture = std::make_shared<FCubeTexture>(512, ETexturePixelFormat::TPF_RGBA16F);
+    cubeTexture->CaptureData(ourShaderBasicToRenderCubemap);
 
 
     //加载俩贴图
@@ -385,6 +391,7 @@ int main()
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
     cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
     cameraComp->bDeferredPipeline = true;
+    cameraComp->TextureEnv = cubeTexture;
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
      
@@ -476,7 +483,7 @@ int main()
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(-(i % 16) % 4, i / 16, (i % 16) / 4) * 2.0f);
         float angle = 20.0f * i;
-        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+        model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
 
         auto primitive = scene->CreateComponent<FPrimitiveComponent>();
 
@@ -578,6 +585,7 @@ int main()
         FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
+        
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);

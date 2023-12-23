@@ -25,12 +25,30 @@ enum class ETexturePixelFormat : int
     TPF_RGBA = GL_RGBA,
     TPF_RGBA16F = GL_RGBA16F,
     TPF_D24S8 = GL_DEPTH24_STENCIL8,
+
 };
 
-class FTexture
+class ITexture
 {
 public:
-    FTexture(glm::vec3 inColor) : TextureFormat(ETexturePixelFormat::TPF_RGB)
+    unsigned int ID;
+    ETexturePixelFormat TextureFormat;
+    ITexture(ETexturePixelFormat inTextureFormat) : ID(GL_NONE), TextureFormat(inTextureFormat)
+    {
+	    
+    }
+    virtual  ~ITexture() = default;
+
+    bool IsValid() const
+    {
+        return ID != GL_NONE;
+    }
+};
+typedef std::shared_ptr<ITexture> ITextureRef;
+class FTexture : public ITexture
+{
+public:
+    FTexture(glm::vec3 inColor) : ITexture(ETexturePixelFormat::TPF_RGB)
     {
 
         glGenTextures(1, &ID);
@@ -87,17 +105,17 @@ public:
         }
     }
 
-    unsigned int ID;
+
 
     std::string path;
     std::string name;
 
-    ETexturePixelFormat TextureFormat;
+
 
     static std::shared_ptr<FTexture>& GetBlack();
     static std::shared_ptr<FTexture>& GetWhite();
 
-    FTexture(int width, int height, ETexturePixelFormat inTextureFormat, bool bGenMipmap = false) : ID(GL_NONE), TextureFormat(ETexturePixelFormat::TPF_Unknow)
+    FTexture(int width, int height, ETexturePixelFormat inTextureFormat, bool bGenMipmap = false) : ITexture(ETexturePixelFormat::TPF_Unknow)
     {
         if (inTextureFormat == ETexturePixelFormat::TPF_Unknow)
         {
@@ -145,7 +163,7 @@ public:
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    FTexture(const std::string& texturePath, ETextureWarpMethod warpMethod, ETextureFilterMethod filterMethod) : ID(GL_NONE), TextureFormat(ETexturePixelFormat::TPF_Unknow)
+    FTexture(const std::string& texturePath, ETextureWarpMethod warpMethod, ETextureFilterMethod filterMethod) : ITexture(ETexturePixelFormat::TPF_Unknow)
     {
         stbi_set_flip_vertically_on_load(true);
         path = texturePath;
@@ -203,10 +221,7 @@ public:
         stbi_image_free(data);
     }
 
-    bool IsValid() const
-    {
-        return ID != GL_NONE;
-    }
+
 
     virtual ~FTexture()
     {
@@ -219,6 +234,71 @@ public:
 
 using FTextureRef = std::shared_ptr<FTexture>;
 
+
+class FCubeTexture : public ITexture
+{
+
+public:
+    unsigned int faceWidth;
+    FCubeTexture(int width, ETexturePixelFormat inTextureFormat) : ITexture(inTextureFormat), faceWidth(width)
+    {
+        if (inTextureFormat == ETexturePixelFormat::TPF_Unknow)
+        {
+            return;
+        }
+
+        glGenTextures(1, &ID);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, ID);
+
+        int format = GL_NONE;
+        int elementType = GL_NONE;
+        switch (inTextureFormat)
+        {
+        case ETexturePixelFormat::TPF_Unknow: break;
+        case ETexturePixelFormat::TPF_RGB:
+            format = GL_RGB;
+            elementType = GL_UNSIGNED_BYTE;
+            break;
+        case ETexturePixelFormat::TPF_RGBA:
+            format = GL_RGBA;
+            elementType = GL_UNSIGNED_BYTE;
+            break;
+        case ETexturePixelFormat::TPF_RGBA16F:
+            format = GL_RGBA;
+            elementType = GL_FLOAT;
+            break;
+        case ETexturePixelFormat::TPF_D24S8:
+            format = GL_DEPTH_STENCIL;
+            elementType = GL_UNSIGNED_INT_24_8;
+            break;
+        }
+
+        for(int face = 0; face < 6; ++face)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, static_cast<GLint>(inTextureFormat), width, width, 0, format, elementType, nullptr);
+        }
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    }
+
+    void CaptureData(std::shared_ptr<class FShader>& InShader);
+
+    ~FCubeTexture()
+    {
+        glDeleteTextures(1, &ID);
+        ID = GL_NONE;
+    }
+};
+
+typedef std::shared_ptr<FCubeTexture> FCubeTextureRef;
+
 enum class EFrameBufferColorFormat
 {
     FCF_Unknow = (int)ETexturePixelFormat::TPF_Unknow,
@@ -226,6 +306,10 @@ enum class EFrameBufferColorFormat
     FCF_RGBA = (int)ETexturePixelFormat::TPF_RGBA,
     FCF_RGBA16F = (int)ETexturePixelFormat::TPF_RGBA16F,
 };
+
+
+
+
 
 class FFrameBuffer
 {
@@ -238,12 +322,19 @@ private:
 
     GLuint FBO;
 
+    unsigned int frameWidth = 0;
+    unsigned int frameHeight = 0;
+
     static constexpr int MaxSupportColorAttachment = 4;
 
     std::vector<std::function<void(void)>> cmds;
 
     void Use()
     {
+        if(frameWidth > 0 && frameHeight > 0)
+        {
+            glViewport(0, 0, frameWidth, frameHeight);
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, FBO);
     }
 
@@ -265,7 +356,7 @@ public:
 
     FFrameBuffer() : FBO(GL_NONE), clearColor(0, 0, 0, 0) {}
 
-    FFrameBuffer(int width, int height, int n, EFrameBufferColorFormat inTextureFormat) : FBO(GL_NONE), clearColor(0, 0, 0, 0)
+    FFrameBuffer(int width, int height, int n, EFrameBufferColorFormat inTextureFormat) : FBO(GL_NONE), frameWidth(width),frameHeight(height), clearColor(0, 0, 0, 0)
     {
         const int numOfColorAttachment = (n > MaxSupportColorAttachment) ? MaxSupportColorAttachment : n;
         for (int i = 0; i < numOfColorAttachment; ++i)

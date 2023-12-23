@@ -46,6 +46,7 @@ public:
 
     static FDeferredDrawer& GetDeferredCmds();
 
+    FCubeTextureRef TextureEnv;
     FFrameBufferRef frameBufferRef;
     FFrameBufferRef gBufferRef;
     FFrameBufferRef gFlipBufferRefs[1];

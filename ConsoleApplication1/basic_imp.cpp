@@ -902,6 +902,18 @@ void FCameraComponent::Init(glm::vec3 position)
 
 void FCameraComponent::DrawDeferred() const
 {
+	/*if (TextureEnv)
+	{
+		TextureBackShader->SetTextureCube("evnTex", TextureEnv);
+		TextureBackShader->setMat4("cameraModel", GetWorldTransform());
+		TextureBackShader->use();
+		FDirectionalLightComponent::DirectionalLightDeferredGeo->use();
+
+		glDrawElements(GL_TRIANGLES, FDirectionalLightComponent::DirectionalLightDeferredGeo->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+		glBindVertexArray(0);
+		glUseProgram(0);
+	}*/
+
     auto&& drawer = GetDeferredCmds();
     if(drawer.registeredCamera.find(this) == drawer.registeredCamera.end())
     {
@@ -1026,6 +1038,44 @@ void FCameraComponent::Draw() const
 {
     std::vector<FRenderBatch> renderBatches;
     std::vector<FLightRenderBatch> lights;
+
+	if (!FDirectionalLightComponent::DirectionalLightDeferredGeo)
+	{
+		FDirectionalLightComponent::DirectionalLightDeferredGeo = std::make_shared<FPrimitive>();
+
+		float geoDatas[] = {
+			-1.0f, 1.0f, -0.5f,
+			-1.0f, -1.0f,-0.5f,
+			1.0f, -1.0f,-0.5f,
+			1.0f, 1.0f, -0.5f
+		};
+
+		std::vector<char> vertex;
+		vertex.resize(sizeof(geoDatas));
+		memcpy(vertex.data(), geoDatas, vertex.size());
+
+		std::vector<unsigned int> index = {
+			0, 1, 2, 0, 2, 3
+		};
+
+		FPrimitiveVertexDesc desc;
+		desc.structSize = 3 * sizeof(float);
+		FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+		desc.props.push_back(prop);
+
+		FDirectionalLightComponent::DirectionalLightDeferredGeo->SetData(vertex, index, desc);
+	}
+
+
+	static FShaderRef TextureBackShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/texture_env.fs");
+	TextureBackShader->setSwitch("Deffered", bDeferredPipeline);
+	TextureBackShader->setDepthWriteEnable(EDepthRightStatus::DWE_Disable);
+	TextureBackShader->SetTextureCube("evnTex", TextureEnv);
+	TextureBackShader->setMat4("cameraModel", GetWorldTransform());
+	renderBatches.emplace_back();
+	renderBatches[0].Shader = TextureBackShader;
+	renderBatches[0].Primitive = FDirectionalLightComponent::DirectionalLightDeferredGeo;
+
 
 	auto frust = GetFrustum(Zoom, aspectRatio, farPlane, nearPlane,0, GetWorldTransform());
 
@@ -1161,6 +1211,9 @@ void FCameraComponent::Draw() const
 
     glm::vec4 clearColor = useFrameBuffer->clearColor;
     const_cast<FCameraComponent*>(this)->AdjustGBuffer();
+
+	
+
     if(bDeferredPipeline)
     {
 
@@ -1266,32 +1319,7 @@ void FCameraComponent::Draw() const
             FDirectionalLightComponent::DirectionalLightDeferredShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/directional_light_deferred.fs");
             FDirectionalLightComponent::DirectionalLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
         }
-        if (!FDirectionalLightComponent::DirectionalLightDeferredGeo)
-        {
-            FDirectionalLightComponent::DirectionalLightDeferredGeo = std::make_shared<FPrimitive>();
-
-            float geoDatas[] = {
-                -1.0f, 1.0f, -0.5f,
-                -1.0f, -1.0f,-0.5f,
-                1.0f, -1.0f,-0.5f,
-                1.0f, 1.0f, -0.5f
-            };
-
-            std::vector<char> vertex;
-            vertex.resize(sizeof(geoDatas));
-            memcpy(vertex.data(), geoDatas, vertex.size());
-
-            std::vector<unsigned int> index = {
-                0, 1, 2, 0, 2, 3
-            };
-
-            FPrimitiveVertexDesc desc;
-            desc.structSize = 3 * sizeof(float);
-            FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
-            desc.props.push_back(prop);
-
-            FDirectionalLightComponent::DirectionalLightDeferredGeo->SetData(vertex, index, desc);
-        }
+        
 
         if (!FEnvLightComponent::EnvLightDeferredGeo)
         {
@@ -1417,6 +1445,7 @@ void FCameraComponent::Draw() const
         //int curFlipBufferIndex = 0;
         //draw lights;
         gFlipBufferRefs[0]->Use();
+
         for (auto&& light : lights)
         {
             switch (light.lightType)
@@ -1452,6 +1481,7 @@ void FCameraComponent::Draw() const
 	            }
             case ELightType::LT_Point:
 	            {
+
                 uint8_t PointLightMask = 1 << 3;
 
                 glEnable(GL_STENCIL_TEST);
@@ -1665,6 +1695,115 @@ std::shared_ptr<FTexture>& FTexture::GetWhite()
 {
     static FTextureRef inner = std::make_shared<FTexture>(glm::vec3(1, 1, 1));
     return inner;
+}
+
+void FCubeTexture::CaptureData(std::shared_ptr<FShader>& InShader)
+{
+	static bool bHasInited = false;
+	static FRenderBatch batch;
+	if(!bHasInited)
+	{
+		bHasInited = true;
+		float vertices[] = {
+			
+			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, 
+			 1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, 
+			 1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, 
+			 1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, 
+			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, 
+			-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, 
+			
+			-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, 
+			 1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, 
+			 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, 
+			 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, 
+			-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, 
+			-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, 
+			
+			-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, 
+			-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, 
+			-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, 
+			-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, 
+			-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, 
+			-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, 
+			
+			 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+			 1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+			 1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+			 1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+			 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+			 1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+			
+			-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+			 1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+			 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+			 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+			-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+			-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+			
+			-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+			 1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+			 1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+			 1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+			-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+			-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
+		};
+
+		batch.Primitive = std::make_shared<FPrimitive>();
+		std::vector<char> vertData;
+		vertData.resize(sizeof(vertices));
+		memcpy(vertData.data(), vertices, vertData.size());
+
+		FPrimitiveVertexDesc desc;
+		desc.structSize = 8 * sizeof(float);
+		desc.props.emplace_back(0, (void*)0, GL_FLOAT, 3);
+		desc.props.emplace_back(1, (void*)(3 * sizeof(float)), GL_FLOAT, 3);
+		desc.props.emplace_back(2, (void*)(6 * sizeof(float)), GL_FLOAT, 2);
+
+		batch.Primitive->SetData(vertData, std::vector<unsigned int>(), desc);
+
+	}
+
+	static glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+	static glm::mat4 captureViews[] =
+	{
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+	};
+
+	batch.Shader = InShader;
+	batch.model = glm::mat4(1);
+
+	static GLuint FBO = GL_NONE;
+	if(FBO == GL_NONE)
+	{
+		glGenFramebuffers(1, &FBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
+		unsigned int attachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, attachments);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	FTextureRef Depth = std::make_shared<FTexture>(faceWidth, faceWidth, ETexturePixelFormat::TPF_D24S8);
+
+	glViewport(0, 0, faceWidth, faceWidth);
+	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+	
+	for(auto face = 0; face < 6; ++face)
+	{
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, ID, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		batch.Shader->setMat4("model", glm::mat4(1));
+		batch.Shader->setInt("faceIndex", face);
+		batch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
+	}
 }
 
 const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()

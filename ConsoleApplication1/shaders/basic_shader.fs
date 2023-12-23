@@ -8,6 +8,7 @@ uniform vec4 InputColor;
 uniform sampler2D TestColor;
 uniform vec3 cameraPos;
 
+
 out vec4 FragColor;
 
 void main()
