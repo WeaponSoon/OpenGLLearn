@@ -440,7 +440,10 @@ int main()
     pbrtex[4] = std::make_shared<FTexture>("./objects/backpack/ao.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
 
 
-    scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.2f, 0.2f, 0.2f));
+    auto&& envLight = scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.2f, 0.2f, 0.2f));
+    envLight->originEnvLight = cubeTexture;
+    envLight->cookedEnvLight = std::make_shared<FCubeTexture>(128, ETexturePixelFormat::TPF_RGBA16F);
+    envLight->CookEnvLight();
     glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
     scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(1.f, 1.0f, 1.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
 
@@ -585,7 +588,6 @@ int main()
         FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
-        
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);

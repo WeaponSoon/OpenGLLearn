@@ -19,6 +19,9 @@ struct FLightRenderBatch
 	mutable std::vector<glm::mat4> worldToShadowProj;
 	std::shared_ptr<FFrameBuffer> shadowMap;
 
+	std::shared_ptr<FCubeTextureRef> envLight;
+	bool bTreatEnvLightAsCooked = true;
+
 	float lightmapDistance;
 	int numOfCSM;
 
@@ -58,7 +61,11 @@ public:
 	static std::shared_ptr<FShader> EnvLightDeferredShader;
 	static std::shared_ptr<FPrimitive> EnvLightDeferredGeo;
 	FEnvLightComponent() = default;
-	
+
+	FCubeTextureRef originEnvLight;
+	FCubeTextureRef cookedEnvLight;
+
+	void CookEnvLight();
 
 	void Init(glm::vec3 inLightColor)
 	{
@@ -146,4 +153,5 @@ public:
 	{
 		outElement.emplace_back(ELightType::LT_Point, lightColor, pointLightParam, GetWorldLocation(), radius, nullptr, 100.f,1);
 	}
+
 };
