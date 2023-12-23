@@ -10,13 +10,19 @@ out vec4 FragColor;
 #endif
 
 
-
+uniform highp float Fov;
+uniform highp float NearClip;
+uniform highp float Aspect;
 uniform highp mat4 cameraModel;
 uniform samplerCube evnTex;
 
 void main()
 {
-    vec3 Pos = vec3(uv * vec2(2,2) - vec2(1,1), -0.5);
+
+    float V = NearClip * tan(Fov * 0.5f);
+    float H = V * Aspect;
+
+    vec3 Pos = vec3(uv * vec2(2*H,2*V) - vec2(H,V), -NearClip);
     vec3 Nor = normalize(Pos);
 
     vec3 WorldNor = (cameraModel * vec4(Nor, 0.0f)).xyz;

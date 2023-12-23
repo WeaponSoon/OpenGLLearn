@@ -19,14 +19,18 @@ struct FLightRenderBatch
 	mutable std::vector<glm::mat4> worldToShadowProj;
 	std::shared_ptr<FFrameBuffer> shadowMap;
 
-	std::shared_ptr<FCubeTextureRef> envLight;
-	bool bTreatEnvLightAsCooked = true;
+	
+	
 
 	float lightmapDistance;
 	int numOfCSM;
 
-	FLightRenderBatch(ELightType inType, glm::vec3 inColor, glm::vec3 inDirection, glm::vec3 inLocation, float inRadius, std::shared_ptr<FFrameBuffer> inShadowMap, float inLightmapDistance, int inNumOfCSM) : lightType(inType), color(inColor), direction(inDirection), location(inLocation), radius(inRadius)
-		, shadowMap(inShadowMap), lightmapDistance(inLightmapDistance), numOfCSM(inNumOfCSM)
+	std::shared_ptr<FCubeTexture> envLight;
+
+	FLightRenderBatch(ELightType inType, glm::vec3 inColor, glm::vec3 inDirection, glm::vec3 inLocation, float inRadius, 
+		std::shared_ptr<FFrameBuffer> inShadowMap, float inLightmapDistance, int inNumOfCSM, std::shared_ptr<FCubeTexture> InEnvLight = nullptr) :
+		lightType(inType), color(inColor), direction(inDirection), location(inLocation), radius(inRadius)
+		, shadowMap(inShadowMap), lightmapDistance(inLightmapDistance), numOfCSM(inNumOfCSM), envLight(InEnvLight)
 	{
 		worldToShadowProj.resize(numOfCSM);
 	}
@@ -74,7 +78,7 @@ public:
 
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
 	{
-		outElement.emplace_back(ELightType::LT_Env, lightColor, GetFowardInWorldSpace(), GetWorldLocation(), 0.0f, nullptr,100.0f,1);
+		outElement.emplace_back(ELightType::LT_Env, lightColor, GetFowardInWorldSpace(), GetWorldLocation(), 0.0f, nullptr,100.0f,1, cookedEnvLight);
 	}
 };
 
@@ -114,7 +118,7 @@ public:
 	FDirectionalLightComponent() :  baseShadowMapSize(2048), numOfCSM(1), lightmapDistance(10.f)
 		, shadowMap(std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA))
 	{
-		
+		 
 	}
 
 	void Init(glm::vec3 inLightColor, glm::quat inRotation)

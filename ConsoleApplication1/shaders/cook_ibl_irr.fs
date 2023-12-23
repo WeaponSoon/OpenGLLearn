@@ -16,7 +16,7 @@ void main()
     vec3 right = normalize(cross(up, N));
     up         = normalize(cross(N, right));
        
-    float sampleDelta = 0.025;
+    float sampleDelta = PI/10.0;
     float nrSamples = 0.0;
     for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
     {
@@ -26,7 +26,7 @@ void main()
             
             vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N; 
 
-            irradiance += texture(OriginTex, sampleVec).rgb * cos(theta) * sin(theta);
+            irradiance += cos(theta) * sin(theta) * texture(OriginTex, sampleVec).rgb;
             nrSamples++;
         }
     }

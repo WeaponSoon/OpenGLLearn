@@ -203,13 +203,24 @@ public:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLint>(warpMethod));
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLint>(warpMethod));
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(filterMethod));
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(filterMethod));
-
-
 
             glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
+
+            switch (filterMethod)
+            {
+            case ETextureFilterMethod::TFM_Nearest:
+                break;
+            case ETextureFilterMethod::TFM_Linear:
+                break;
+            case ETextureFilterMethod::TFM_TriLinear:
+                break;
+            case ETextureFilterMethod::TFM_TriNearest:
+                break;
+            }
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         }
         else

@@ -380,12 +380,11 @@ int main()
     FCubeTextureRef cubeTexture = std::make_shared<FCubeTexture>(512, ETexturePixelFormat::TPF_RGBA16F);
     cubeTexture->CaptureData(ourShaderBasicToRenderCubemap);
 
-
     //加载俩贴图
     FTextureRef tex[3];
     tex[0] = std::make_shared<FTexture>(("./container.jpg"), ETextureWarpMethod::TWM_Repeat, ETextureFilterMethod::TFM_TriLinear);
     tex[1] = std::make_shared<FTexture>(("./awesomeface.png"), ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
-     
+
      
     //给场景添加一个相机
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -394,7 +393,6 @@ int main()
     cameraComp->TextureEnv = cubeTexture;
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
-     
 
 
       
@@ -439,11 +437,13 @@ int main()
     pbrtex[3] = std::make_shared<FTexture>("./objects/backpack/specular.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
     pbrtex[4] = std::make_shared<FTexture>("./objects/backpack/ao.jpg", ETextureWarpMethod::TWM_Clamp, ETextureFilterMethod::TFM_TriLinear);
 
-
     auto&& envLight = scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.2f, 0.2f, 0.2f));
     envLight->originEnvLight = cubeTexture;
+
     envLight->cookedEnvLight = std::make_shared<FCubeTexture>(128, ETexturePixelFormat::TPF_RGBA16F);
     envLight->CookEnvLight();
+    envLight->CookEnvLight();
+     
     glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
     scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(1.f, 1.0f, 1.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
 
@@ -506,7 +506,7 @@ int main()
         primitive->GetShader(0)->SetTexture("Albedo", sphereAlbedo); 
         primitive->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
         primitive->GetShader(0)->SetTexture("Roughness", sphereRough);
-        primitive->GetShader(0)->SetTexture("Metallic", sphereMetal);
+        primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetBlack());
         primitive->GetShader(0)->SetTexture("AO", sphereAO);
         primitive->GetShader(0)->SetTexture("NormalMap", sphereNormal);
         primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",true);
@@ -567,6 +567,7 @@ int main()
     //basicShaderCubeComponent->GetShader(0)->setVec4("InputColor", glm::vec4(0, 1, 0, 1));
     //basicShaderCubeComponent->GetShader(0)->SetTexture("TestColor", FTexture::GetWhite());
     //basicShaderCubeComponent->GetShader(0)->setSwitch("Test1", true);
+    
     while (!glfwWindowShouldClose(window))
     {
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -588,6 +589,7 @@ int main()
         FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
+        
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);

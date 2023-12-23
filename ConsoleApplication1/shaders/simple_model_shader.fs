@@ -19,7 +19,7 @@ uniform vec3 EnvLightColor;
 
 uniform highp vec3 cameraPos;
 
-/*<Switch=USE_NORMAL_MAP,Version=330>*/
+/*<Switch=USE_NORMAL_MAP,Switch=SWAP_CHANNEL,Version=330>*/
 
 // texture samplers
 uniform sampler2D Albedo;
@@ -168,6 +168,11 @@ void main()
 
 	vec3 finalColor = (calColor * specular + EnvLightColor * albedo * ao);
 	FragColor = vec4(finalColor,1.0f);
+	#if SWAP_CHANNEL
+	float tem = FragColor.r;
+	FragColor.r = FragColor.g;
+	FragColor.g = tem;
+	#endif
 
 	//FragColor = vec4(TexCoord.x, TexCoord.y, 0, 1);
 	// linearly interpolate between both textures (80% container, 20% awesomeface)

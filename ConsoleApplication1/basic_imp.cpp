@@ -1069,6 +1069,9 @@ void FCameraComponent::Draw() const
 
 	static FShaderRef TextureBackShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/texture_env.fs");
 	TextureBackShader->setSwitch("Deffered", bDeferredPipeline);
+	TextureBackShader->setFloat("NearClip", nearPlane);
+	TextureBackShader->setFloat("Fov", glm::radians(Zoom));
+	TextureBackShader->setFloat("Aspect", aspectRatio);
 	TextureBackShader->setDepthWriteEnable(EDepthRightStatus::DWE_Disable);
 	TextureBackShader->SetTextureCube("evnTex", TextureEnv);
 	TextureBackShader->setMat4("cameraModel", GetWorldTransform());
@@ -1518,9 +1521,24 @@ void FCameraComponent::Draw() const
             	break;
             case ELightType::LT_Env:
             {
+					FEnvLightComponent::EnvLightDeferredShader->SetTexture("gWorldPosMetallic", gBufferRef->Color[1]);
+					FEnvLightComponent::EnvLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
+					FEnvLightComponent::EnvLightDeferredShader->SetTexture("gWorldNormalRoughness", gBufferRef->Color[3]);
                     FEnvLightComponent::EnvLightDeferredShader->SetTexture("gEmissiveAO", gBufferRef->Color[0]);
                     FEnvLightComponent::EnvLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
                     FEnvLightComponent::EnvLightDeferredShader->setVec3("EnvLightColor", light.color);
+					FEnvLightComponent::EnvLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
+
+					if(light.envLight)
+					{
+						FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLLight", light.envLight);
+						FEnvLightComponent::EnvLightDeferredShader->setSwitch("IBLEnable", true);
+					}
+					else
+					{
+						FEnvLightComponent::EnvLightDeferredShader->setSwitch("IBLEnable", false);
+					}
+
                     FEnvLightComponent::EnvLightDeferredShader->use();
             		FEnvLightComponent::EnvLightDeferredGeo->use();
 
@@ -1804,6 +1822,7 @@ void FCubeTexture::CaptureData(std::shared_ptr<FShader>& InShader)
 		batch.Shader->setInt("faceIndex", face);
 		batch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
 	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()
@@ -1915,7 +1934,7 @@ void FEnvLightComponent::CookEnvLight()
 	glViewport(0, 0, cookedEnvLight->faceWidth, cookedEnvLight->faceWidth);
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
-
+	batch.Shader->SetTextureCube("OriginTex", originEnvLight);
 	for (auto face = 0; face < 6; ++face)
 	{
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cookedEnvLight->ID, 0);
@@ -1924,4 +1943,5 @@ void FEnvLightComponent::CookEnvLight()
 		batch.Shader->setInt("faceIndex", face);
 		batch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
 	}
-}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0); 
+} 
