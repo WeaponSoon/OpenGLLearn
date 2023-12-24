@@ -1971,6 +1971,7 @@ void FEnvLightComponent::CookEnvLight()
 		unsigned int attachments[1] = { GL_COLOR_ATTACHMENT0 };
 		glDrawBuffers(1, attachments);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		specBRDFBatch.PrimitiveMode = GL_TRIANGLE_STRIP;
 		specBRDFBatch.Draw_InputVP(glm::mat4(1), glm::mat4(1), glm::vec3(0));
 
 

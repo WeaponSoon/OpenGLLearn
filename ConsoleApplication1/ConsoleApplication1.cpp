@@ -510,7 +510,7 @@ int main()
         primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetBlack());
         primitive->GetShader(0)->SetTexture("AO", sphereAO);
         primitive->GetShader(0)->SetTexture("NormalMap", sphereNormal);
-        primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",true);
+        primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",false);
         primitive->GetShader(0)->setPrimitiveMethod(EPrimitiveMethod::PM_TriangleStrip);
 
     }
@@ -590,7 +590,6 @@ int main()
         FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
-        //envLight->CookEnvLight();
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);
