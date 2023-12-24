@@ -1641,7 +1641,17 @@ void FCameraComponent::Draw() const
                     }
                     break;
                 case ELightType::LT_Env:
-                    renderBatch.Shader->setVec3("EnvLightColor", light.color);
+					if(light.envLight)
+					{
+						renderBatch.Shader->setSwitch("IBLEnable", true);
+						renderBatch.Shader->SetTextureCube("IBLLight", light.envLight);
+					}
+					else
+					{
+						renderBatch.Shader->setSwitch("IBLEnable", false);
+						renderBatch.Shader->setVec3("EnvLightColor", light.color);
+					}
+                    
                     break;
 
                 }

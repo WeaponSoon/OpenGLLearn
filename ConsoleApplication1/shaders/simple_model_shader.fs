@@ -19,9 +19,13 @@ uniform vec3 EnvLightColor;
 
 uniform highp vec3 cameraPos;
 
-/*<Switch=USE_NORMAL_MAP,Switch=SWAP_CHANNEL,Version=330>*/
+/*<Switch=USE_NORMAL_MAP,Switch=SWAP_CHANNEL,Switch=IBLEnable,Version=330>*/
 
 // texture samplers
+
+#if IBLEnable
+uniform samplerCube IBLLight;
+#endif
 uniform sampler2D Albedo;
 uniform sampler2D Specular;
 uniform sampler2D Roughness;
@@ -165,8 +169,25 @@ void main()
 
 		calColor += (kD * albedo * InvPI + specularPart) * LC * max(dot(normal, L),0.0);
 	}
+	vec3 FinalEnvLightColor;
+#if IBLEnable
+	{
+    	vec3 N = normal;
+	    vec3 V = normalize(cameraPos - WorldPosition);
 
-	vec3 finalColor = (calColor * specular + EnvLightColor * albedo * ao);
+    	vec3 kS = CalcFreshnel(max(dot(N, V), 0.0), F0);
+    	vec3 kD = 1.0 - kS;
+    	kD *= 1.0 - metallic;	  
+    	vec3 irradiance = texture(IBLLight, N).rgb;
+    	vec3 diffuse      = irradiance * albedo;
+    	vec3 ambient = (kD * diffuse) * ao;
+    	FinalEnvLightColor = (ambient * ao);
+	}
+#else
+	FinalEnvLightColor = EnvLightColor * albedo * ao; 
+#endif
+
+	vec3 finalColor = (calColor * specular + FinalEnvLightColor);
 	FragColor = vec4(finalColor,1.0f);
 	#if SWAP_CHANNEL
 	float tem = FragColor.r;
