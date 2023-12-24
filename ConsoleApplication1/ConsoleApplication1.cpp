@@ -590,7 +590,7 @@ int main()
         FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
-        envLight->CookEnvLight();
+        //envLight->CookEnvLight();
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);

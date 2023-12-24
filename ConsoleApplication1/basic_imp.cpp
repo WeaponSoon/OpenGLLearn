@@ -1655,7 +1655,7 @@ void FCameraComponent::Draw() const
 						renderBatch.Shader->setVec3("EnvLightColor", light.color);
 					}
                     
-                    break;
+                    break; 
 
                 }
             }
@@ -1942,7 +1942,7 @@ void FEnvLightComponent::CookEnvLight()
 		
 			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
 			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-			 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+			 1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 
 			 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
 		};
 
@@ -1956,6 +1956,7 @@ void FEnvLightComponent::CookEnvLight()
 		quatDesc.props.emplace_back(1, (void*)(3 * sizeof(float)), GL_FLOAT, 2);
 		specBRDFBatch.Primitive->SetData(quatVertData, std::vector<unsigned int>(), quatDesc);
 		specBRDFBatch.Shader = specBRDFShader;
+		specBRDFBatch.Shader->setPrimitiveMethod(EPrimitiveMethod::PM_TriangleStrip);
 
 
 		GLuint BRDFFBO = GL_NONE;
