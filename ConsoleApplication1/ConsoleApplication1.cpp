@@ -330,7 +330,7 @@ int main()
     }
      
     FShaderRef ourShader2 = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
-    ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+    //ourShader2 = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
     //FModel loadedModel("./objects/backpack/backpack.obj");
 
@@ -367,7 +367,7 @@ int main()
 
     //创建一个Shader作为模板 
     FShaderRef ourShader = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
-    ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
+    //ourShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
 
     FShaderRef ourShaderBasic = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/basic_shader.fs");
     ourShaderBasic->setSwitch("Test1", true);
@@ -389,7 +389,7 @@ int main()
     //给场景添加一个相机
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
     cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
-    cameraComp->bDeferredPipeline = true;
+    cameraComp->bDeferredPipeline = false;
     cameraComp->TextureEnv = cubeTexture;
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
@@ -440,9 +440,10 @@ int main()
     auto&& envLight = scene->CreateComponentWithArg<FEnvLightComponent>(glm::vec3(0.2f, 0.2f, 0.2f));
     envLight->originEnvLight = cubeTexture;
 
-    envLight->cookedEnvLight = std::make_shared<FCubeTexture>(128, ETexturePixelFormat::TPF_RGBA16F);
-    envLight->CookEnvLight();
-    envLight->CookEnvLight();
+    envLight->cookedEnvLight = std::make_shared<FCubeTexture>(64, ETexturePixelFormat::TPF_RGBA16F);
+    envLight->cookedSpecPrefilterLight = std::make_shared<FCubeTexture>(256, ETexturePixelFormat::TPF_RGBA16F, true);
+	envLight->CookEnvLight();
+    
      
     glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
     scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(1.f, 1.0f, 1.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
@@ -469,7 +470,7 @@ int main()
     FPrimitiveVertexDesc shpereDesc;
     GenerateSphereModel(1, 64, 64, sphereData, sphereIndices, shpereDesc);
     FShaderRef sphereShader = std::make_shared<FShader>("shaders/simple_model_deferred.vs", "shaders/simple_model_deferred.fs");
-    //sphereShader = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
+    sphereShader = std::make_shared<FShader>("shaders/simple_model_shader.vs", "shaders/simple_model_shader.fs");
     FPrimitiveRef spherePrimitive = std::make_shared<FPrimitive>();
     spherePrimitive->SetData(sphereData, sphereIndices, shpereDesc);
     spherePrimitive->Bound.begin = glm::vec3(2, 2, 2);
@@ -589,7 +590,7 @@ int main()
         FInputReceiver::GetInputReceiver().frameIndex++;
         // render
         // ------
-        
+        envLight->CookEnvLight();
         FCameraComponent::GetDeferredCmds().Execute();
 
         glfwSwapBuffers(window);

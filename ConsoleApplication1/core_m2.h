@@ -20,6 +20,10 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+inline bool isPowerOfTwo(int n) {
+    return (n > 0) && ((n & (n - 1)) == 0);
+}
+
 
 template<typename T, typename Ret, typename...Args>
 struct HasInit

@@ -25,7 +25,11 @@ uniform highp vec3 cameraPos;
 
 #if IBLEnable
 uniform samplerCube IBLLight;
+uniform samplerCube IBLSpecPrefilter;
+uniform sampler2D IBLSpecBRDF;
+uniform int MaxLOD;
 #endif
+
 uniform sampler2D Albedo;
 uniform sampler2D Specular;
 uniform sampler2D Roughness;
@@ -110,6 +114,10 @@ vec3 CalcFreshnel(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
+vec3 CalcFresnelRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}   
 
 void main()
 {
@@ -180,8 +188,20 @@ void main()
     	kD *= 1.0 - metallic;	  
     	vec3 irradiance = texture(IBLLight, N).rgb;
     	vec3 diffuse      = irradiance * albedo;
-    	vec3 ambient = (kD * diffuse) * ao;
-    	FinalEnvLightColor = (ambient * ao);
+    	//vec3 ambient = (kD * diffuse) * ao;
+    	
+
+		vec3 R = reflect(-V, N); 
+		vec3 F = CalcFresnelRoughness(max(dot(N, V), 0.0), F0, roughness);
+
+    	vec3 prefilteredColor = textureLod(IBLSpecPrefilter, R,  roughness * MaxLOD).rgb;    
+    	vec2 brdf  = texture(IBLSpecBRDF, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    	vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+
+    	vec3 ambient = (kD * diffuse + specular) * ao;
+		
+		FinalEnvLightColor = (ambient);
+
 	}
 #else
 	FinalEnvLightColor = EnvLightColor * albedo * ao; 

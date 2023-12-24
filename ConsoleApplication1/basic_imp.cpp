@@ -1645,6 +1645,9 @@ void FCameraComponent::Draw() const
 					{
 						renderBatch.Shader->setSwitch("IBLEnable", true);
 						renderBatch.Shader->SetTextureCube("IBLLight", light.envLight);
+						renderBatch.Shader->SetTextureCube("IBLSpecPrefilter", light.envSpecLight);
+						renderBatch.Shader->SetTexture("IBLSpecBRDF", FEnvLightComponent::cookedSpecBrdfLight);
+						renderBatch.Shader->setInt("MaxLOD", FEnvLightComponent::cookedSpecBrdfLight->GetNumOfMips() - 1);
 					}
 					else
 					{
@@ -1845,14 +1848,29 @@ const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()
 void FEnvLightComponent::CookEnvLight()
 {
 	static bool bHasInited = false;
+
 	static FRenderBatch batch;
+	static FRenderBatch specPrefilerBatch;
+	static FRenderBatch specBRDFBatch;
+
 	static FShaderRef shader;
+	static FShaderRef specPrefilterShader;
+	static FShaderRef specBRDFShader;
+	
+
 	if (!bHasInited)
 	{
 		bHasInited = true;
 
 		shader = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/cook_ibl_irr.fs");
 		shader->SetCullMethod(ECullMethod::CM_None);
+
+		specPrefilterShader = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/cook_ibl_spec_prefilter.fs");
+		specPrefilterShader->SetCullMethod(ECullMethod::CM_None);
+
+		specBRDFShader = std::make_shared<FShader>("shaders/cook_ibl_spec_brdf.vs", "shaders/cook_ibl_spec_brdf.fs");
+		specBRDFShader->SetCullMethod(ECullMethod::CM_None);
+
 		float vertices[] = {
 
 			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
@@ -1912,6 +1930,52 @@ void FEnvLightComponent::CookEnvLight()
 		batch.Primitive->SetData(vertData, std::vector<unsigned int>(), desc);
 		batch.Shader = shader;
 		batch.model = glm::mat4(1);
+
+		specPrefilerBatch.Primitive = batch.Primitive;
+		specPrefilerBatch.Shader = specPrefilterShader;
+		specPrefilerBatch.model = batch.model;
+
+
+		cookedSpecBrdfLight = std::make_shared<FTexture>(512, 512, ETexturePixelFormat::TPF_RGBA16F);
+
+		float quadVertices[] = {
+		
+			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+			 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+			 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		};
+
+		specBRDFBatch.Primitive = std::make_shared<FPrimitive>();
+		std::vector<char> quatVertData;
+		quatVertData.resize(sizeof(quadVertices));
+		memcpy(quatVertData.data(), quadVertices, quatVertData.size());
+		FPrimitiveVertexDesc quatDesc;
+		quatDesc.structSize = 5 * sizeof(float);
+		quatDesc.props.emplace_back(0, (void*)0, GL_FLOAT, 3);
+		quatDesc.props.emplace_back(1, (void*)(3 * sizeof(float)), GL_FLOAT, 2);
+		specBRDFBatch.Primitive->SetData(quatVertData, std::vector<unsigned int>(), quatDesc);
+		specBRDFBatch.Shader = specBRDFShader;
+
+
+		GLuint BRDFFBO = GL_NONE;
+		glGenFramebuffers(1, &BRDFFBO);
+
+		glViewport(0, 0, cookedSpecBrdfLight->GetSize().x, cookedSpecBrdfLight->GetSize().y);
+		glBindFramebuffer(GL_FRAMEBUFFER, BRDFFBO);
+		
+		FTextureRef Depth = std::make_shared<FTexture>(cookedSpecBrdfLight->GetSize().x, cookedSpecBrdfLight->GetSize().y, ETexturePixelFormat::TPF_D24S8);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, cookedSpecBrdfLight->ID, 0);
+		unsigned int attachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, attachments);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		specBRDFBatch.Draw_InputVP(glm::mat4(1), glm::mat4(1), glm::vec3(0));
+
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
 	}
 
 	static glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
@@ -1939,19 +2003,50 @@ void FEnvLightComponent::CookEnvLight()
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 
-	FTextureRef Depth = std::make_shared<FTexture>(cookedEnvLight->faceWidth, cookedEnvLight->faceWidth, ETexturePixelFormat::TPF_D24S8);
-
-	glViewport(0, 0, cookedEnvLight->faceWidth, cookedEnvLight->faceWidth);
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
-	batch.Shader->SetTextureCube("OriginTex", originEnvLight);
-	for (auto face = 0; face < 6; ++face)
 	{
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cookedEnvLight->ID, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		batch.Shader->setMat4("model", glm::mat4(1));
-		batch.Shader->setInt("faceIndex", face);
-		batch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
+		FTextureRef Depth = std::make_shared<FTexture>(cookedEnvLight->faceWidth, cookedEnvLight->faceWidth, ETexturePixelFormat::TPF_D24S8);
+
+		glViewport(0, 0, cookedEnvLight->faceWidth, cookedEnvLight->faceWidth);
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+		batch.Shader->SetTextureCube("OriginTex", originEnvLight);
+		for (auto face = 0; face < 6; ++face)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cookedEnvLight->ID, 0);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			batch.Shader->setMat4("model", glm::mat4(1));
+			batch.Shader->setInt("faceIndex", face);
+			batch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0); 
-} 
+	
+
+	{
+		FTextureRef Depth = std::make_shared<FTexture>(cookedSpecPrefilterLight->faceWidth, cookedSpecPrefilterLight->faceWidth, ETexturePixelFormat::TPF_D24S8);
+		
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+		specPrefilerBatch.Shader->SetTextureCube("OriginTex", originEnvLight);
+
+		int NOM = cookedSpecPrefilterLight->GetNumOfMips();
+		int CurrentRes = cookedSpecPrefilterLight->faceWidth;
+		for(int i = 0; i < NOM; ++i)
+		{
+			glViewport(0, 0, CurrentRes, CurrentRes);
+			for (auto face = 0; face < 6; ++face)
+			{
+				specPrefilerBatch.Shader->setFloat("resultRes", CurrentRes);
+				specPrefilerBatch.Shader->setFloat("roughness", (float)i / ((float)(NOM - 1)));
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cookedSpecPrefilterLight->ID, i);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				specPrefilerBatch.Shader->setMat4("model", glm::mat4(1));
+				specPrefilerBatch.Shader->setInt("faceIndex", face);
+				specPrefilerBatch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
+			}
+			CurrentRes /= 2;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+}
+FTextureRef FEnvLightComponent::cookedSpecBrdfLight;// = std::make_shared<FTexture>(512, 512, ETexturePixelFormat::TPF_RGBA16F);

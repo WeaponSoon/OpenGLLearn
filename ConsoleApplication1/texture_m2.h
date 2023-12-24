@@ -38,7 +38,7 @@ public:
 	    
     }
     virtual  ~ITexture() = default;
-
+    virtual int GetNumOfMips() const { return 1; }
     bool IsValid() const
     {
         return ID != GL_NONE;
@@ -47,6 +47,7 @@ public:
 typedef std::shared_ptr<ITexture> ITextureRef;
 class FTexture : public ITexture
 {
+    bool GenMip = false;
 public:
     FTexture(glm::vec3 inColor) : ITexture(ETexturePixelFormat::TPF_RGB)
     {
@@ -152,13 +153,16 @@ public:
 
         glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(inTextureFormat), width, height, 0, format, elementType, nullptr);
 
+        bGenMipmap = (bGenMipmap && isPowerOfTwo(width) && isPowerOfTwo(height));
+
         if (bGenMipmap)
         {
+            GenMip = true;
             glGenerateMipmap(GL_TEXTURE_2D);
         }
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, bGenMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, bGenMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -205,7 +209,13 @@ public:
 
 
             glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-            glGenerateMipmap(GL_TEXTURE_2D);
+
+            if(isPowerOfTwo(width) && isPowerOfTwo(height))
+            {
+                GenMip = true;
+                glGenerateMipmap(GL_TEXTURE_2D);
+            }
+            
 
             switch (filterMethod)
             {
@@ -219,7 +229,7 @@ public:
                 break;
             }
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         }
@@ -232,7 +242,14 @@ public:
         stbi_image_free(data);
     }
 
-
+    virtual int GetNumOfMips() const override
+    {
+        if(GenMip)
+        {
+            return std::round(std::log2(std::max(GetSize().x, GetSize().y))) + 1;
+        }
+        return 1;
+    }
 
     virtual ~FTexture()
     {
@@ -249,9 +266,10 @@ using FTextureRef = std::shared_ptr<FTexture>;
 class FCubeTexture : public ITexture
 {
 
+    bool GenMip = false;
 public:
     unsigned int faceWidth;
-    FCubeTexture(int width, ETexturePixelFormat inTextureFormat) : ITexture(inTextureFormat), faceWidth(width)
+    FCubeTexture(int width, ETexturePixelFormat inTextureFormat, bool bGenmip = false) : ITexture(inTextureFormat), faceWidth(width)
     {
         if (inTextureFormat == ETexturePixelFormat::TPF_Unknow)
         {
@@ -288,8 +306,20 @@ public:
         {
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, static_cast<GLint>(inTextureFormat), width, width, 0, format, elementType, nullptr);
         }
-
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        bGenmip = bGenmip && isPowerOfTwo(width);
+        if(bGenmip)
+        {
+            GenMip = true;
+            glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+        }
+        if(bGenmip)
+        {
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        }
+        else
+        {
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        }
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -300,6 +330,15 @@ public:
     }
 
     void CaptureData(std::shared_ptr<class FShader>& InShader);
+    virtual int GetNumOfMips() const override
+    {
+        if (GenMip)
+        {
+            return std::round(std::log2(faceWidth)) + 1;
+        }
+        return 1;
+    }
+
 
     ~FCubeTexture()
     {
