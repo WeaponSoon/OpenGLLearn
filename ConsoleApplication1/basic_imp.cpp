@@ -1705,9 +1705,9 @@ void FCameraComponent::Draw() const
         FinalPrimitive->use();
 
         FinalShader->SetTexture("sceneColor", gFlipBufferRefs[0]->Color[0]);
-
+		glDisable(GL_DEPTH_TEST);
         glDrawElements(GL_TRIANGLES, FinalPrimitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
-
+		glEnable(GL_DEPTH_TEST);
         glBindVertexArray(0);
         glUseProgram(0);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);

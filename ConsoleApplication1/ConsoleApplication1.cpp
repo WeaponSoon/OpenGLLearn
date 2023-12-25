@@ -508,6 +508,7 @@ int main()
         primitive->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
         primitive->GetShader(0)->SetTexture("Roughness", sphereRough);
         primitive->GetShader(0)->SetTexture("Metallic", sphereMetal);
+        //primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetBlack());
         primitive->GetShader(0)->SetTexture("AO", sphereAO);
         primitive->GetShader(0)->SetTexture("NormalMap", sphereNormal);
         primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",true);
