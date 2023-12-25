@@ -110,9 +110,9 @@ void GenerateSphereModel(float inRadius, uint32_t inHorizantalSegments, uint32_t
 
             float xPos = xPosEquater * std::sin(ySegment * PI);
             float yPos = std::cos(ySegment * PI);
-            float zPos = zPosEquater * std::sin(ySegment * PI);
+            float zPos = zPosEquater * std::sin(ySegment * PI); 
 
-            positions.push_back(glm::vec3(xPos, yPos, zPos) * inRadius);
+            positions.push_back(glm::vec3(xPos, yPos, zPos) * inRadius); 
             uv.push_back(glm::vec2(xSegment, ySegment));
             normals.push_back(glm::normalize(glm::vec3(xPos, yPos, zPos)));
             glm::vec3 tempTangent = glm::normalize(glm::cross(glm::vec3(xPosEquater, 0, zPosEquater), glm::vec3(0, 1, 0)));
@@ -507,10 +507,10 @@ int main()
         primitive->GetShader(0)->SetTexture("Albedo", sphereAlbedo); 
         primitive->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
         primitive->GetShader(0)->SetTexture("Roughness", sphereRough);
-        primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetBlack());
+        primitive->GetShader(0)->SetTexture("Metallic", sphereMetal);
         primitive->GetShader(0)->SetTexture("AO", sphereAO);
         primitive->GetShader(0)->SetTexture("NormalMap", sphereNormal);
-        primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",false);
+        primitive->GetShader(0)->setSwitch("USE_NORMAL_MAP",true);
         primitive->GetShader(0)->setPrimitiveMethod(EPrimitiveMethod::PM_TriangleStrip);
 
     }

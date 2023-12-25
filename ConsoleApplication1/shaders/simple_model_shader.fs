@@ -72,7 +72,7 @@ vec3 GetAO(vec2 InUV)
 vec3 GetNormal(vec2 InUV)
 {
 #if USE_NORMAL_MAP
-	vec3 tangentNormal = texture(NormalMap, InUV).xyz;
+	vec3 tangentNormal = texture(NormalMap, InUV).xyz * 2.0 - 1.0;
     mat3 TBN = mat3(WorldTangent, WorldBitangnet, WorldNormal);
     return normalize(TBN * tangentNormal);
 #else
@@ -183,7 +183,7 @@ void main()
     	vec3 N = normal;
 	    vec3 V = normalize(cameraPos - WorldPosition);
 
-    	vec3 kS = CalcFreshnel(max(dot(N, V), 0.2), F0);
+    	vec3 kS = CalcFreshnel(max(dot(N, V), 0.1), F0);
     	vec3 kD = 1.0 - kS;
     	kD *= 1.0 - metallic;	  
     	vec3 irradiance = texture(IBLLight, N).rgb;
@@ -192,7 +192,7 @@ void main()
     	
 
 		vec3 R = reflect(-V, N); 
-		vec3 F = CalcFresnelRoughness(max(dot(N, V), 0.2), F0, roughness);
+		vec3 F = CalcFresnelRoughness(max(dot(N, V), 0.1), F0, roughness);
 
     	vec3 prefilteredColor = textureLod(IBLSpecPrefilter, R,  roughness * MaxLOD).rgb;    
     	vec2 brdf  = texture(IBLSpecBRDF, vec2(max(dot(N, V), 0.0), roughness)).rg;
