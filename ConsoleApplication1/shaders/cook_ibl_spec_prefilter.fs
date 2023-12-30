@@ -24,7 +24,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
 
 float RandomSequence(uint Index) 
 {
-     return fract(sin(float(Index)*0.265) * 100) * 0.5 + 0.5;
+    return fract(sin(float(Index)*0.265) * 100) * 0.5 + 0.5;
 }
 
 vec3 ImportanceSampleGGX(vec2 Epsilon, vec3 N, float roughness)

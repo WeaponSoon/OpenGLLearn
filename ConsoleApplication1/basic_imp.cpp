@@ -1647,7 +1647,7 @@ void FCameraComponent::Draw() const
 						renderBatch.Shader->SetTextureCube("IBLLight", light.envLight);
 						renderBatch.Shader->SetTextureCube("IBLSpecPrefilter", light.envSpecLight);
 						renderBatch.Shader->SetTexture("IBLSpecBRDF", FEnvLightComponent::cookedSpecBrdfLight);
-						renderBatch.Shader->setInt("MaxLOD", FEnvLightComponent::cookedSpecBrdfLight->GetNumOfMips() - 1);
+						renderBatch.Shader->setInt("MaxLOD", light.envSpecLight->GetNumOfMips() - 1);
 					}
 					else
 					{

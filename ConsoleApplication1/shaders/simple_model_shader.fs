@@ -125,7 +125,7 @@ void main()
 	float roughness = GetRoughness(TexCoord);
 	float metallic = GetMetallic(TexCoord);
 	vec3 ao = GetAO(TexCoord);
-	vec3 specular = GetSpecular(TexCoord);
+	vec3 tint = GetSpecular(TexCoord);
 	vec3 normal = GetNormal(TexCoord);
 	highp vec3 viewVector = (cameraPos - WorldPosition);
 	vec3 viewDir = normalize(viewVector);
@@ -194,7 +194,7 @@ void main()
 		vec3 R = reflect(-V, N); 
 		vec3 F = CalcFresnelRoughness(max(dot(N, V), 0.1), F0, roughness);
 
-    	vec3 prefilteredColor = textureLod(IBLSpecPrefilter, R,  roughness * MaxLOD).rgb;    
+    	vec3 prefilteredColor = textureLod(IBLSpecPrefilter, R,  clamp(roughness * MaxLOD,0.0f,MaxLOD-1.01)).rgb;    
     	vec2 brdf  = texture(IBLSpecBRDF, vec2(max(dot(N, V), 0.0), roughness)).rg;
     	vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
@@ -207,7 +207,7 @@ void main()
 	FinalEnvLightColor = EnvLightColor * albedo * ao; 
 #endif
 
-	vec3 finalColor = (calColor * specular + FinalEnvLightColor);
+	vec3 finalColor = (calColor * tint + FinalEnvLightColor);
 	FragColor = vec4(finalColor,1.0f);
 	#if SWAP_CHANNEL
 	float tem = FragColor.r;

@@ -390,7 +390,7 @@ int main()
     auto cameraComp = scene->CreateComponentWithArg<FCameraComponent>(glm::vec3(0.0f, 0.0f, 3.0f));
     cameraComp->AddSubobjectWithArgs<FSimpleImputMoveComponentSubobject>(0);//给相机添加个输入移动组件
     cameraComp->bDeferredPipeline = false;
-    cameraComp->TextureEnv = cubeTexture;
+    cameraComp->TextureEnv = cubeTexture; 
     //方便起见将刚才的framebuffer的color贴图也放到这个数组里
     tex[2] = tex[0];//frameBuffer->Color[0];
 
@@ -497,16 +497,17 @@ int main()
         //if (i % 2)
         {
             primitive->AddPrimitiveUnit(spherePrimitive, std::make_shared<FShader>(*sphereShader));
-        }
+        } 
         //else
         //{ 
         //    primitive->AddPrimitiveUnit(plane, std::make_shared<FShader>(*ourShader));
         //    primitive->GetShader(0)->SetCullMethod(ECullMethod::CM_None);//平面模型不剔除，渲染双面
-        //}
+        //} 
         primitive->GetShader(0)->SetTexture("Emissive", FTexture::GetBlack());
         primitive->GetShader(0)->SetTexture("Albedo", sphereAlbedo); 
         primitive->GetShader(0)->SetTexture("Specular", FTexture::GetWhite());
         primitive->GetShader(0)->SetTexture("Roughness", sphereRough);
+        //primitive->GetShader(0)->SetTexture("Roughness", FTexture::GetWhite()); 
         primitive->GetShader(0)->SetTexture("Metallic", sphereMetal);
         //primitive->GetShader(0)->SetTexture("Metallic", FTexture::GetBlack());
         primitive->GetShader(0)->SetTexture("AO", sphereAO);
