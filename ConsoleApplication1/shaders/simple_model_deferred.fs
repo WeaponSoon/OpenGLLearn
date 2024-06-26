@@ -61,7 +61,7 @@ vec3 GetEmissive(vec2 InUV)
 vec3 GetNormal(vec2 InUV)
 {
 #if USE_NORMAL_MAP
-	vec3 tangentNormal = texture(NormalMap, InUV).xyz;
+	vec3 tangentNormal = texture(NormalMap, InUV).xyz * 2.0 - 1.0;;
     mat3 TBN = mat3(WorldTangent, WorldBitangnet, WorldNormal);
     return normalize(TBN * tangentNormal);
 #else

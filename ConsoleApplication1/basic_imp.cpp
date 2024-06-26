@@ -1528,9 +1528,12 @@ void FCameraComponent::Draw() const
                     FEnvLightComponent::EnvLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
                     FEnvLightComponent::EnvLightDeferredShader->setVec3("EnvLightColor", light.color);
 					FEnvLightComponent::EnvLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
-
+					FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLLight", light.envLight);
+					FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLSpecPrefilter", light.envSpecLight);
+					FEnvLightComponent::EnvLightDeferredShader->SetTexture("IBLSpecBRDF", FEnvLightComponent::cookedSpecBrdfLight);
+					FEnvLightComponent::EnvLightDeferredShader->setInt("MaxLOD", light.envSpecLight->GetNumOfMips() - 1);
 					if(light.envLight)
-					{
+					{ 
 						FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLLight", light.envLight);
 						FEnvLightComponent::EnvLightDeferredShader->setSwitch("IBLEnable", true);
 					}
