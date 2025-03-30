@@ -447,7 +447,8 @@ int main()
      
     glm::quat dirLightDir = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(-30.0f), glm::vec3(1, 0, 0));
     scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(1.f, 1.0f, 1.0f), dirLightDir)->AddSubobject<FTestLightControlSubobject>();
-
+    glm::quat dirLightDir2 = glm::angleAxis(glm::radians(120.0f), glm::vec3(0, 1, 0)) * glm::angleAxis(glm::radians(30.0f), glm::vec3(1, 0, 0));
+	scene->CreateComponentWithArg<FDirectionalLightComponent>(glm::vec3(1.f, 1.0f, 1.0f), dirLightDir2)->AddSubobject<FTestLightControlSubobject>();
 
 
     //auto&& guitaComponent = scene->CreateComponent<FPrimitiveComponent>();
