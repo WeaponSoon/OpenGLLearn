@@ -825,6 +825,9 @@ std::shared_ptr<FPrimitive> FPointLightComponent::PointLightDeferredGeo;
 std::shared_ptr<FShader> FCameraComponent::FinalShader;
 std::shared_ptr<FPrimitive> FCameraComponent::FinalPrimitive;
 
+std::shared_ptr<FShader> FCameraProxy::FinalShader;
+std::shared_ptr<FPrimitive> FCameraProxy::FinalPrimitive;
+
 FInputReceiver& FInputReceiver::GetInputReceiver()
 {
     static FInputReceiver innerReceiver;
@@ -1847,7 +1850,211 @@ const std::shared_ptr<FFrameBuffer>& FFrameBuffer::GetDefaultFrameBuffer()
     return inner;
 }
 
+void FEnvLightProxy::CookEnvLight() {
+	static bool bHasInited = false;
 
+	static FRenderBatch batch;
+	static FRenderBatch specPrefilerBatch;
+	static FRenderBatch specBRDFBatch;
+
+	static FShaderRef shader;
+	static FShaderRef specPrefilterShader;
+	static FShaderRef specBRDFShader;
+
+
+	if (!bHasInited)
+	{
+		bHasInited = true;
+
+		shader = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/cook_ibl_irr.fs");
+		shader->SetCullMethod(ECullMethod::CM_None);
+
+		specPrefilterShader = std::make_shared<FShader>("shaders/basic_shader.vs", "shaders/cook_ibl_spec_prefilter.fs");
+		specPrefilterShader->SetCullMethod(ECullMethod::CM_None);
+
+		specBRDFShader = std::make_shared<FShader>("shaders/cook_ibl_spec_brdf.vs", "shaders/cook_ibl_spec_brdf.fs");
+		specBRDFShader->SetCullMethod(ECullMethod::CM_None);
+
+		float vertices[] = {
+
+			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
+			 1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,
+			 1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,
+			 1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,
+			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
+			-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
+
+			-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,
+			 1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,
+			 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
+			 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
+			-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,
+
+			-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+			-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
+			-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
+			-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+
+			 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+			 1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+			 1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+			 1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+			 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+			 1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+
+			-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+			 1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+			 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+			 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+			-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+			-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+
+			-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+			 1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+			 1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+			 1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+			-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+			-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
+		};
+
+		batch.Primitive = std::make_shared<FPrimitive>();
+		std::vector<char> vertData;
+		vertData.resize(sizeof(vertices));
+		memcpy(vertData.data(), vertices, vertData.size());
+
+		FPrimitiveVertexDesc desc;
+		desc.structSize = 8 * sizeof(float);
+		desc.props.emplace_back(0, (void*)0, GL_FLOAT, 3);
+		desc.props.emplace_back(1, (void*)(3 * sizeof(float)), GL_FLOAT, 3);
+		desc.props.emplace_back(2, (void*)(6 * sizeof(float)), GL_FLOAT, 2);
+
+		batch.Primitive->SetData(vertData, std::vector<unsigned int>(), desc);
+		batch.Shader = shader;
+		batch.model = glm::mat4(1);
+
+		specPrefilerBatch.Primitive = batch.Primitive;
+		specPrefilerBatch.Shader = specPrefilterShader;
+		specPrefilerBatch.model = batch.model;
+
+
+		cookedSpecBrdfLight = std::make_shared<FTexture>(512, 512, ETexturePixelFormat::TPF_RGBA16F);
+
+		float quadVertices[] = {
+
+			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+			 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+			 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		};
+
+		specBRDFBatch.Primitive = std::make_shared<FPrimitive>();
+		std::vector<char> quatVertData;
+		quatVertData.resize(sizeof(quadVertices));
+		memcpy(quatVertData.data(), quadVertices, quatVertData.size());
+		FPrimitiveVertexDesc quatDesc;
+		quatDesc.structSize = 5 * sizeof(float);
+		quatDesc.props.emplace_back(0, (void*)0, GL_FLOAT, 3);
+		quatDesc.props.emplace_back(1, (void*)(3 * sizeof(float)), GL_FLOAT, 2);
+		specBRDFBatch.Primitive->SetData(quatVertData, std::vector<unsigned int>(), quatDesc);
+		specBRDFBatch.Shader = specBRDFShader;
+		specBRDFBatch.Shader->setPrimitiveMethod(EPrimitiveMethod::PM_TriangleStrip);
+
+
+		GLuint BRDFFBO = GL_NONE;
+		glGenFramebuffers(1, &BRDFFBO);
+
+		glViewport(0, 0, cookedSpecBrdfLight->GetSize().x, cookedSpecBrdfLight->GetSize().y);
+		glBindFramebuffer(GL_FRAMEBUFFER, BRDFFBO);
+
+		FTextureRef Depth = std::make_shared<FTexture>(cookedSpecBrdfLight->GetSize().x, cookedSpecBrdfLight->GetSize().y, ETexturePixelFormat::TPF_D24S8);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, cookedSpecBrdfLight->ID, 0);
+		unsigned int attachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, attachments);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		specBRDFBatch.PrimitiveMode = GL_TRIANGLE_STRIP;
+		specBRDFBatch.Draw_InputVP(glm::mat4(1), glm::mat4(1), glm::vec3(0));
+
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+	}
+
+	static glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+	static glm::mat4 captureViews[] =
+	{
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+	};
+
+
+
+	static GLuint FBO = GL_NONE;
+	if (FBO == GL_NONE)
+	{
+		glGenFramebuffers(1, &FBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
+		unsigned int attachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, attachments);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	{
+		FTextureRef Depth = std::make_shared<FTexture>(cookedEnvLight->faceWidth, cookedEnvLight->faceWidth, ETexturePixelFormat::TPF_D24S8);
+
+		glViewport(0, 0, cookedEnvLight->faceWidth, cookedEnvLight->faceWidth);
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+		batch.Shader->SetTextureCube("OriginTex", originEnvLight);
+		for (auto face = 0; face < 6; ++face)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cookedEnvLight->ID, 0);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			batch.Shader->setMat4("model", glm::mat4(1));
+			batch.Shader->setInt("faceIndex", face);
+			batch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+
+	{
+		FTextureRef Depth = std::make_shared<FTexture>(cookedSpecPrefilterLight->faceWidth, cookedSpecPrefilterLight->faceWidth, ETexturePixelFormat::TPF_D24S8);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, Depth->ID, 0);
+		specPrefilerBatch.Shader->SetTextureCube("OriginTex", originEnvLight);
+
+		int NOM = cookedSpecPrefilterLight->GetNumOfMips();
+		int CurrentRes = cookedSpecPrefilterLight->faceWidth;
+		for (int i = 0; i < NOM; ++i)
+		{
+			glViewport(0, 0, CurrentRes, CurrentRes);
+			for (auto face = 0; face < 6; ++face)
+			{
+				specPrefilerBatch.Shader->setFloat("resultRes", CurrentRes);
+				specPrefilerBatch.Shader->setFloat("roughness", (float)i / ((float)(NOM - 1)));
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cookedSpecPrefilterLight->ID, i);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				specPrefilerBatch.Shader->setMat4("model", glm::mat4(1));
+				specPrefilerBatch.Shader->setInt("faceIndex", face);
+				specPrefilerBatch.Draw_InputVP(captureViews[face], captureProjection, glm::vec3(0));
+			}
+			CurrentRes /= 2;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+}
 void FEnvLightComponent::CookEnvLight()
 {
 	static bool bHasInited = false;
@@ -2055,3 +2262,779 @@ void FEnvLightComponent::CookEnvLight()
 	}
 }
 FTextureRef FEnvLightComponent::cookedSpecBrdfLight;// = std::make_shared<FTexture>(512, 512, ETexturePixelFormat::TPF_RGBA16F);
+
+glm::mat4 FSceneProxy::GetWorldTransform() const
+{
+
+	return Transform;
+}
+
+size_t  FPrimitiveProxy::GetPrimitiveCount() const
+{
+	return primitives.size();
+}
+FPrimitiveRef FPrimitiveProxy::GetPrimitive(int id) const
+{
+	return primitives[id].Primitive;
+}
+
+FShaderRef FPrimitiveProxy::GetShader(int id) const
+{
+	return primitives[id].Shader;
+}
+
+
+void FPrimitiveProxy::SetShader(int id, FShaderRef inShader)
+{
+	primitives[id].Shader = inShader;
+}
+
+
+
+void FPrimitiveProxy::GenerateRenderBatch(std::vector<FRenderBatch>& outRenderBatch) const
+{
+	for (auto&& unit : primitives)
+	{
+		FRenderBatch render_batch;
+		render_batch.Shader = unit.Shader;
+		render_batch.Primitive = unit.Primitive;
+		render_batch.model = Transform;
+		render_batch.PrimitiveMode = (GLenum)unit.Shader->getPrimitiveMetohd();
+		outRenderBatch.push_back(render_batch);
+	}
+}
+
+void FCameraProxy::Draw() const
+{
+	std::vector<FRenderBatch> renderBatches;
+	std::vector<FLightRenderBatch> lights;
+
+	if (!FDirectionalLightComponent::DirectionalLightDeferredGeo)
+	{
+		FDirectionalLightComponent::DirectionalLightDeferredGeo = std::make_shared<FPrimitive>();
+
+		float geoDatas[] = {
+			-1.0f, 1.0f, -0.5f,
+			-1.0f, -1.0f,-0.5f,
+			1.0f, -1.0f,-0.5f,
+			1.0f, 1.0f, -0.5f
+		};
+
+		std::vector<char> vertex;
+		vertex.resize(sizeof(geoDatas));
+		memcpy(vertex.data(), geoDatas, vertex.size());
+
+		std::vector<unsigned int> index = {
+			0, 1, 2, 0, 2, 3
+		};
+
+		FPrimitiveVertexDesc desc;
+		desc.structSize = 3 * sizeof(float);
+		FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+		desc.props.push_back(prop);
+
+		FDirectionalLightComponent::DirectionalLightDeferredGeo->SetData(vertex, index, desc);
+	}
+
+
+	static FShaderRef TextureBackShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/texture_env.fs");
+	TextureBackShader->setSwitch("Deffered", bDeferredPipeline);
+	TextureBackShader->setFloat("NearClip", nearPlane);
+	TextureBackShader->setFloat("Fov", glm::radians(Zoom));
+	TextureBackShader->setFloat("Aspect", aspectRatio);
+	TextureBackShader->setDepthWriteEnable(EDepthRightStatus::DWE_Disable);
+	TextureBackShader->SetTextureCube("evnTex", TextureEnv);
+	TextureBackShader->setMat4("cameraModel", Transform);
+	renderBatches.emplace_back();
+	renderBatches[0].Shader = TextureBackShader;
+	renderBatches[0].Primitive = FDirectionalLightComponent::DirectionalLightDeferredGeo;
+
+
+	auto frust = GetFrustum(Zoom, aspectRatio, farPlane, nearPlane, 0, Transform);
+
+	auto safe_scene = scene.lock();
+	auto&& allComponents = safe_scene->GetAllComponents();
+	for (auto&& component : allComponents)
+	{
+		auto primitiveComponent = std::dynamic_pointer_cast<FPrimitiveComponent>(component);
+		if (primitiveComponent)
+		{
+			if (renderOnlyPrimitives.size() == 0)
+			{
+				if (ignorePrimitives.find(primitiveComponent) == ignorePrimitives.end())
+				{
+					glm::vec3 extent = primitiveComponent->BoundCache.end - primitiveComponent->BoundCache.Center();
+					glm::vec3 vers[8] =
+					{
+						primitiveComponent->BoundCache.Center() + extent,
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(1,-1,1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(1,-1,-1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(1,1,-1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,1,1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,-1,1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,-1,-1),
+						primitiveComponent->BoundCache.Center() + extent * glm::vec3(-1,1,-1),
+					};
+					bool shouldCull = false;
+					for (int pli = 0; pli < 6; ++pli)
+					{
+						bool inNegtivePlane = false;
+						for (int pvi = 0; pvi < 8; ++pvi)
+						{
+							if (frust.planes[pli].x * vers[pvi].x +
+								frust.planes[pli].y * vers[pvi].y +
+								frust.planes[pli].z * vers[pvi].z +
+								frust.planes[pli].w <= 0)
+							{
+								inNegtivePlane = true;
+								break;
+							}
+						}
+
+						if (!inNegtivePlane)
+						{
+							shouldCull = true;
+							break;
+						}
+					}
+					if (!shouldCull)
+					{
+						primitiveComponent->GenerateRenderBatch(renderBatches);
+					}
+				}
+			}
+			else
+			{
+				if (renderOnlyPrimitives.find(primitiveComponent) != renderOnlyPrimitives.end())
+				{
+					glm::vec3 extent = primitiveComponent->BoundCache.end - primitiveComponent->BoundCache.Center();
+					glm::vec3 vers[8] =
+					{
+						BoundCache.Center() + extent,
+						BoundCache.Center() + extent * glm::vec3(1,-1,1),
+						BoundCache.Center() + extent * glm::vec3(1,-1,-1),
+						BoundCache.Center() + extent * glm::vec3(1,1,-1),
+						BoundCache.Center() + extent * glm::vec3(-1,1,1),
+						BoundCache.Center() + extent * glm::vec3(-1,-1,1),
+						BoundCache.Center() + extent * glm::vec3(-1,-1,-1),
+						BoundCache.Center() + extent * glm::vec3(-1,1,-1),
+					};
+					bool shouldCull = false;
+					for (int pli = 0; pli < 6; ++pli)
+					{
+						bool inNegtivePlane = false;
+						for (int pvi = 0; pvi < 8; ++pvi)
+						{
+							if (frust.planes[pli].x * vers[pvi].x +
+								frust.planes[pli].y * vers[pvi].y +
+								frust.planes[pli].z * vers[pvi].z +
+								frust.planes[pli].w <= 0)
+							{
+								inNegtivePlane = true;
+								break;
+							}
+						}
+
+						if (!inNegtivePlane)
+						{
+							shouldCull = true;
+							break;
+						}
+					}
+					if (!shouldCull)
+					{
+						primitiveComponent->GenerateRenderBatch(renderBatches);
+					}
+				}
+			}
+		}
+		else
+		{
+			auto lightComponent = std::dynamic_pointer_cast<FLightComponent>(component);
+			if (lightComponent)
+			{
+				lightComponent->GetLightRenderBatch(lights);
+			}
+		}
+	}
+	FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
+
+	bool bViewportSet = false;
+	glm::vec2 viewportSize;
+	if (!useFrameBuffer->IsEmpty())
+	{
+		if (useFrameBuffer->Color[0]->IsValid())
+		{
+			viewportSize = useFrameBuffer->Color[0]->GetSize();
+			bViewportSet = true;
+		}
+		else if (useFrameBuffer->Depth->IsValid())
+		{
+			viewportSize = useFrameBuffer->Depth->GetSize();
+			bViewportSet = true;
+		}
+	}
+	if (!bViewportSet)
+	{
+		int x, y;
+		glfwGetFramebufferSize(glfwGetCurrentContext(), &x, &y);
+		viewportSize.x = x;
+		viewportSize.y = y;
+	}
+
+	glm::vec4 clearColor = useFrameBuffer->clearColor;
+	const_cast<FCameraProxy*>(this)->AdjustGBuffer();
+
+
+
+	if (bDeferredPipeline)
+	{
+
+		//draw shadow maps
+#if 1
+		for (auto&& light : lights)
+		{
+			switch (light.lightType)
+			{
+			case ELightType::LT_Directional:
+				if (light.shadowMap)
+				{
+					light.shadowMap->Use();//绑定buffer
+					auto shadowMapSize = light.shadowMap->Depth->GetSize();
+					glViewport(0, 0, shadowMapSize.x, shadowMapSize.y);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+					glEnable(GL_DEPTH_TEST);
+					float zoomInRadius = glm::radians(Zoom);
+					float tanHalfZoom = glm::tan(zoomInRadius / 2.0f);
+					auto bufferSize = gBufferRef->Color[0]->GetSize();
+					float aspectRatio = bufferSize.x / bufferSize.y;
+					for (int CSMIndex = 0; CSMIndex < light.numOfCSM; ++CSMIndex)
+					{
+						glViewport(0, 0, shadowMapSize.x, shadowMapSize.x * (CSMIndex + 1));
+						float CSMInnerFarPlane = ((CSMIndex + 1) / (float)light.numOfCSM) * light.lightmapDistance;
+						float CSMInnerNearPlane = ((CSMIndex) / (float)light.numOfCSM) * light.lightmapDistance;
+
+						float lhalfHight = CSMInnerFarPlane * tanHalfZoom;
+						float lhalfWidth = lhalfHight * aspectRatio;
+						float lHalfLength = (CSMInnerFarPlane - CSMInnerNearPlane) / 2;
+						float CSMRadius = glm::sqrt(lhalfHight * lhalfHight + lhalfWidth * lhalfWidth + lHalfLength * lHalfLength);
+
+
+						glm::vec3 shadowCasterPos = GetWorldLocation() + GetFowardInWorldSpace() * (CSMInnerNearPlane + CSMInnerFarPlane) * 0.5f - light.direction * 5.0f;
+						glm::vec3 shadowCasterUp = glm::vec3(0, 1, 0);
+						if (glm::abs(glm::abs(dot(light.direction, shadowCasterUp)) - 1.0f) < 0.05f)
+						{
+							shadowCasterUp = glm::vec3(0, 0, -1);
+						}
+
+
+						glm::vec3 casterForward = light.direction;
+						glm::vec3 casterRight = glm::normalize(glm::cross(casterForward, shadowCasterUp));
+						glm::vec3 casterUp = glm::cross(casterRight, casterForward);
+
+						glm::vec3 shadowCasterBasePos = GetWorldLocation() + GetFowardInWorldSpace() * (CSMInnerNearPlane + CSMInnerFarPlane) * 0.5f;
+
+						float rightValue = glm::dot(shadowCasterBasePos, casterRight);
+						float upValue = glm::dot(shadowCasterBasePos, casterUp);
+						float forwardValue = glm::dot(shadowCasterBasePos, casterForward);
+
+						glm::vec2 cellCount = light.shadowMap->Depth->GetSize();
+						float rightStepSize = 2 * CSMRadius / cellCount.x;
+						float upStepSize = 2 * CSMRadius / cellCount.y;
+
+						float rightStepValue = glm::floor(rightValue / rightStepSize) * rightStepSize;
+						float upStepValue = glm::floor(upValue / upStepSize) * upStepSize;
+
+
+						shadowCasterBasePos = rightStepValue * casterRight + upStepValue * casterUp + forwardValue * light.direction;
+						shadowCasterPos = shadowCasterBasePos - light.direction * 5.0f;
+
+						glm::mat4 casterView = glm::lookAt(shadowCasterPos, shadowCasterPos + light.direction, shadowCasterUp);
+
+						glm::mat4 proj = glm::ortho(-CSMRadius, CSMRadius, -CSMRadius, CSMRadius, 1.0f, 10.0f);
+
+						light.worldToShadowProj[CSMIndex] = proj * casterView;
+
+						for (auto&& primitve : renderBatches)
+						{
+							primitve.Draw_InputVP(casterView, proj, shadowCasterPos);
+						}
+					}
+
+				}
+				break;
+			case ELightType::LT_Point:
+				break;
+			case ELightType::LT_Env:
+				break;
+			}
+		}
+#endif
+
+
+		gBufferRef->Use();
+		glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+
+		//draw g-buffer
+		for (auto&& renderBatch : renderBatches)
+		{
+			renderBatch.Draw(std::static_pointer_cast<FCameraComponent>(((FCameraComponent*)this)->GetObject()));//获取指向自己的智能指针
+		}
+		glUseProgram(0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		if (!FDirectionalLightComponent::DirectionalLightDeferredShader)
+		{
+			FDirectionalLightComponent::DirectionalLightDeferredShader = std::make_shared<FShader>("./shaders/directional_light_deferred.vs", "./shaders/directional_light_deferred.fs");
+			FDirectionalLightComponent::DirectionalLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+		}
+
+
+		if (!FEnvLightComponent::EnvLightDeferredGeo)
+		{
+			FEnvLightComponent::EnvLightDeferredGeo = std::make_shared<FPrimitive>();
+
+			float geoDatas[] = {
+				-1.0f, 1.0f, -0.5f,
+				-1.0f, -1.0f,-0.5f,
+				1.0f, -1.0f,-0.5f,
+				1.0f, 1.0f, -0.5f
+			};
+
+			std::vector<char> vertex;
+			vertex.resize(sizeof(geoDatas));
+			memcpy(vertex.data(), geoDatas, vertex.size());
+
+			std::vector<unsigned int> index = {
+				0, 1, 2, 0, 2, 3
+			};
+
+			FPrimitiveVertexDesc desc;
+			desc.structSize = 3 * sizeof(float);
+			FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+			desc.props.push_back(prop);
+
+			FEnvLightComponent::EnvLightDeferredGeo->SetData(vertex, index, desc);
+		}
+		if (!FEnvLightComponent::EnvLightDeferredShader)
+		{
+			FEnvLightComponent::EnvLightDeferredShader = std::make_shared<FShader>("./shaders/env_light_deferred.vs", "./shaders/env_light_deferred.fs");
+			FEnvLightComponent::EnvLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+		}
+
+		if (!FPointLightComponent::PointLightDeferredGeo)
+		{
+			FPointLightComponent::PointLightDeferredGeo = std::make_shared<FPrimitive>();
+
+
+
+			float geoDatas[] = {
+				0.5f, -0.5f, -0.5f,
+				-0.5f, -0.5f, -0.5f,
+				0.5f,  0.5f, -0.5f,
+				-0.5f,  0.5f, -0.5f,
+				0.5f,  0.5f, -0.5f,
+				-0.5f, -0.5f, -0.5f,
+
+				-0.5f, -0.5f,  0.5f,
+				0.5f, -0.5f,  0.5f,
+				0.5f,  0.5f,  0.5f,
+				0.5f,  0.5f,  0.5f,
+				-0.5f,  0.5f,  0.5f,
+				-0.5f, -0.5f,  0.5f,
+
+				-0.5f,  0.5f,  0.5f,
+				-0.5f,  0.5f, -0.5f,
+				-0.5f, -0.5f, -0.5f,
+				-0.5f, -0.5f, -0.5f,
+				-0.5f, -0.5f,  0.5f,
+				-0.5f,  0.5f,  0.5f,
+
+				0.5f,  0.5f, -0.5f,
+				0.5f,  0.5f,  0.5f,
+				0.5f, -0.5f, -0.5f,
+				0.5f, -0.5f,  0.5f,
+				0.5f, -0.5f, -0.5f,
+				0.5f,  0.5f,  0.5f,
+
+
+				-0.5f, -0.5f, -0.5f,
+				0.5f, -0.5f, -0.5f,
+				0.5f, -0.5f,  0.5f,
+				 0.5f, -0.5f,  0.5f,
+				-0.5f, -0.5f,  0.5f,
+				-0.5f, -0.5f, -0.5f,
+
+				0.5f,  0.5f, -0.5f,
+				-0.5f,  0.5f, -0.5f,
+				0.5f,  0.5f,  0.5f,
+				-0.5f,  0.5f,  0.5f,
+				0.5f,  0.5f,  0.5f,
+				-0.5f,  0.5f, -0.5f,
+			};
+
+
+
+
+			//float geoDatas[] = {
+			//    -1.0f, 1.0f, -0.5f,
+			//    -1.0f, -1.0f,-0.5f,
+			//    1.0f, -1.0f,-0.5f,
+			//    1.0f, 1.0f, -0.5f
+			//};
+
+			std::vector<char> vertex;
+			vertex.resize(sizeof(geoDatas));
+			memcpy(vertex.data(), geoDatas, vertex.size());
+
+			std::vector<unsigned int> index = {
+				// 0, 1, 2, 0, 2, 3
+			};
+
+			FPrimitiveVertexDesc desc;
+			desc.structSize = 3 * sizeof(float);
+			FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+			desc.props.push_back(prop);
+
+			FPointLightComponent::PointLightDeferredGeo->SetData(vertex, index, desc);
+		}
+		if (!FPointLightComponent::PointLightDeferredShader)
+		{
+			FPointLightComponent::PointLightDeferredShader = std::make_shared<FShader>("./shaders/point_light_deferred.vs", "./shaders/point_light_deferred.fs");
+			FPointLightComponent::PointLightDeferredShader->SetBlendMethod(EBlendMethod::BM_Additive);
+			FPointLightComponent::PointLightDeferredShader->SetCullMethod(ECullMethod::CM_None);
+		}
+
+
+		gFlipBufferRefs[0]->Use();
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		glDisable(GL_DEPTH_TEST);
+		//int curFlipBufferIndex = 0;
+		//draw lights;
+		gFlipBufferRefs[0]->Use();
+
+		for (auto&& light : lights)
+		{
+			switch (light.lightType)
+			{
+			case ELightType::LT_Directional:
+			{
+
+				FDirectionalLightComponent::DirectionalLightDeferredShader->use();
+				FDirectionalLightComponent::DirectionalLightDeferredGeo->use();
+
+				FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("gWorldPosMetallic", gBufferRef->Color[1]);
+				FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
+				FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("gWorldNormalRoughness", gBufferRef->Color[3]);
+				FDirectionalLightComponent::DirectionalLightDeferredShader->setVec3("DirectionalLightDir", -light.direction);
+				FDirectionalLightComponent::DirectionalLightDeferredShader->setVec3("DirectionalLightColor", light.color);
+				FDirectionalLightComponent::DirectionalLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
+
+				FDirectionalLightComponent::DirectionalLightDeferredShader->setInt("numOfCSM", light.numOfCSM);
+				FDirectionalLightComponent::DirectionalLightDeferredShader->SetTexture("shadowMapCSM", light.shadowMap->Depth);
+				for (int CSMIdx = 0; CSMIdx < light.numOfCSM; ++CSMIdx)
+				{
+					FDirectionalLightComponent::DirectionalLightDeferredShader->setMat4(std::string("worldToShadowViewProj[") + std::to_string(CSMIdx) + "]", light.worldToShadowProj[CSMIdx]);
+				}
+
+				glDrawElements(GL_TRIANGLES, FDirectionalLightComponent::DirectionalLightDeferredGeo->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+
+				glBindVertexArray(0);
+				glUseProgram(0);
+
+
+				//curFlipBufferIndex = lastFlipBuffer;
+				break;
+			}
+			case ELightType::LT_Point:
+			{
+
+				uint8_t PointLightMask = 1 << 3;
+
+				glEnable(GL_STENCIL_TEST);
+				glStencilMask(PointLightMask);
+				glStencilFunc(GL_NOTEQUAL, PointLightMask, PointLightMask);
+				glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+				FPointLightComponent::PointLightDeferredShader->use();
+				FPointLightComponent::PointLightDeferredGeo->use();
+
+				FPointLightComponent::PointLightDeferredShader->SetTexture("gWorldPosMetallic", gBufferRef->Color[1]);
+				FPointLightComponent::PointLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
+				FPointLightComponent::PointLightDeferredShader->SetTexture("gWorldNormalRoughness", gBufferRef->Color[3]);
+				FPointLightComponent::PointLightDeferredShader->setVec3("PointLightParams", light.direction);
+				FPointLightComponent::PointLightDeferredShader->setVec3("PointLightColor", light.color);
+				FPointLightComponent::PointLightDeferredShader->setVec3("PointLightPosition", light.location);
+				FPointLightComponent::PointLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
+
+				FPointLightComponent::PointLightDeferredShader->setMat4("projection", GetView().project);
+				FPointLightComponent::PointLightDeferredShader->setMat4("view", GetView().view);
+				glm::mat4 matid(1);
+				FPointLightComponent::PointLightDeferredShader->setMat4("model", glm::translate(matid, light.location) * glm::scale(matid, glm::vec3(light.radius / 0.5f)));
+
+				glDrawArrays(GL_TRIANGLES, 0, FPointLightComponent::PointLightDeferredGeo->GetNumOfVertex());
+
+
+				glClear(GL_STENCIL_BUFFER_BIT);
+
+				glBindVertexArray(0);
+				glUseProgram(0);
+				glDisable(GL_STENCIL_TEST);
+			}
+
+			break;
+			case ELightType::LT_Env:
+			{
+				FEnvLightComponent::EnvLightDeferredShader->SetTexture("gWorldPosMetallic", gBufferRef->Color[1]);
+				FEnvLightComponent::EnvLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
+				FEnvLightComponent::EnvLightDeferredShader->SetTexture("gWorldNormalRoughness", gBufferRef->Color[3]);
+				FEnvLightComponent::EnvLightDeferredShader->SetTexture("gEmissiveAO", gBufferRef->Color[0]);
+				FEnvLightComponent::EnvLightDeferredShader->SetTexture("gAlbedoSpec", gBufferRef->Color[2]);
+				FEnvLightComponent::EnvLightDeferredShader->setVec3("EnvLightColor", light.color);
+				FEnvLightComponent::EnvLightDeferredShader->setVec3("cameraPos", GetWorldLocation());
+				FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLLight", light.envLight);
+				FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLSpecPrefilter", light.envSpecLight);
+				FEnvLightComponent::EnvLightDeferredShader->SetTexture("IBLSpecBRDF", FEnvLightComponent::cookedSpecBrdfLight);
+				FEnvLightComponent::EnvLightDeferredShader->setInt("MaxLOD", light.envSpecLight->GetNumOfMips() - 1);
+				if (light.envLight)
+				{
+					FEnvLightComponent::EnvLightDeferredShader->SetTextureCube("IBLLight", light.envLight);
+					FEnvLightComponent::EnvLightDeferredShader->setSwitch("IBLEnable", true);
+				}
+				else
+				{
+					FEnvLightComponent::EnvLightDeferredShader->setSwitch("IBLEnable", false);
+				}
+
+				FEnvLightComponent::EnvLightDeferredShader->use();
+				FEnvLightComponent::EnvLightDeferredGeo->use();
+
+				glDrawElements(GL_TRIANGLES, FEnvLightComponent::EnvLightDeferredGeo->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+
+				glBindVertexArray(0);
+				glUseProgram(0);
+			}
+
+			break;
+
+			}
+		}
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		useFrameBuffer->Use();
+
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		if (!FinalShader)
+		{
+			FinalShader = std::make_shared<FShader>("./shaders/final_shader.vs", "./shaders/final_shader.fs");
+		}
+		if (!FinalPrimitive)
+		{
+			FinalPrimitive = std::make_shared<FPrimitive>();
+
+			float geoDatas[] = {
+				-1.0f, 1.0f, -0.5f,
+				-1.0f, -1.0f,-0.5f,
+				1.0f, -1.0f,-0.5f,
+				1.0f, 1.0f, -0.5f
+			};
+
+			std::vector<char> vertex;
+			vertex.resize(sizeof(geoDatas));
+			memcpy(vertex.data(), geoDatas, vertex.size());
+
+			std::vector<unsigned int> index = {
+				0, 1, 2, 0, 2, 3
+			};
+
+			FPrimitiveVertexDesc desc;
+			desc.structSize = 3 * sizeof(float);
+			FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+			desc.props.push_back(prop);
+
+			FinalPrimitive->SetData(vertex, index, desc);
+		}
+
+		FinalShader->use();
+		FinalPrimitive->use();
+
+		FinalShader->SetTexture("sceneColor", gFlipBufferRefs[0]->Color[0]);
+
+		glDrawElements(GL_TRIANGLES, FinalPrimitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glEnable(GL_DEPTH_TEST);
+	}
+	else
+	{
+		gFlipBufferRefs[0]->Use();
+		glViewport(0, 0, static_cast<GLsizei>(viewportSize.x), static_cast<GLsizei>(viewportSize.y));
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		for (auto&& renderBatch : renderBatches)
+		{
+			renderBatch.Shader->setVec3("DirectionalLightDir", glm::vec3(1, 0, 0));
+			renderBatch.Shader->setVec3("DirectionalLightColor", glm::vec3(0, 0, 0));
+
+			for (int pointLightId = 0; pointLightId < 4; ++pointLightId)
+			{
+				renderBatch.Shader->setVec4(std::string("PointLightLocationAndRadius[") + std::to_string(pointLightId) + "]", glm::vec4(0, 0, 0, 0));
+				renderBatch.Shader->setVec3(std::string("PointLightColor[") + std::to_string(pointLightId) + "]", glm::vec3(0, 0, 0));
+			}
+
+			renderBatch.Shader->setVec3("EnvLightColor", glm::vec3(0, 0, 0));
+
+			int pointLightNum = 0;
+			for (auto&& light : lights)
+			{
+				switch (light.lightType)
+				{
+				case ELightType::LT_Directional:
+					renderBatch.Shader->setVec3("DirectionalLightDir", -light.direction);
+					renderBatch.Shader->setVec3("DirectionalLightColor", light.color);
+					break;
+				case ELightType::LT_Point:
+					if (pointLightNum < 4)
+					{
+						renderBatch.Shader->setVec4(std::string("PointLightLocationAndRadius[") + std::to_string(pointLightNum) + "]", glm::vec4(light.location, light.radius));
+						renderBatch.Shader->setVec3(std::string("PointLightColor[") + std::to_string(pointLightNum) + "]", light.color);
+						++pointLightNum;
+					}
+					break;
+				case ELightType::LT_Env:
+					if (light.envLight)
+					{
+						renderBatch.Shader->setSwitch("IBLEnable", true);
+						renderBatch.Shader->SetTextureCube("IBLLight", light.envLight);
+						renderBatch.Shader->SetTextureCube("IBLSpecPrefilter", light.envSpecLight);
+						renderBatch.Shader->SetTexture("IBLSpecBRDF", FEnvLightComponent::cookedSpecBrdfLight);
+						renderBatch.Shader->setInt("MaxLOD", light.envSpecLight->GetNumOfMips() - 1);
+					}
+					else
+					{
+						renderBatch.Shader->setSwitch("IBLEnable", false);
+						renderBatch.Shader->setVec3("EnvLightColor", light.color);
+					}
+
+					break;
+
+				}
+			}
+			renderBatch.Draw(std::static_pointer_cast<FCameraComponent>(((FCameraComponent*)this)->GetObject()));
+		}
+		glUseProgram(0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+		useFrameBuffer->Use();
+
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		if (!FinalShader)
+		{
+			FinalShader = std::make_shared<FShader>("./shaders/final_shader.vs", "./shaders/final_shader.fs");
+		}
+		if (!FinalPrimitive)
+		{
+			FinalPrimitive = std::make_shared<FPrimitive>();
+
+			float geoDatas[] = {
+				-1.0f, 1.0f, -0.5f,
+				-1.0f, -1.0f,-0.5f,
+				1.0f, -1.0f,-0.5f,
+				1.0f, 1.0f, -0.5f
+			};
+
+			std::vector<char> vertex;
+			vertex.resize(sizeof(geoDatas));
+			memcpy(vertex.data(), geoDatas, vertex.size());
+
+			std::vector<unsigned int> index = {
+				0, 1, 2, 0, 2, 3
+			};
+
+			FPrimitiveVertexDesc desc;
+			desc.structSize = 3 * sizeof(float);
+			FPrimitiveVertexPropDesc prop(0, nullptr, GL_FLOAT, 3);
+			desc.props.push_back(prop);
+
+			FinalPrimitive->SetData(vertex, index, desc);
+		}
+
+		FinalShader->use();
+		FinalPrimitive->use();
+
+		FinalShader->SetTexture("sceneColor", gFlipBufferRefs[0]->Color[0]);
+		glDisable(GL_DEPTH_TEST);
+		glDrawElements(GL_TRIANGLES, FinalPrimitive->GetNumOfIndices(), GL_UNSIGNED_INT, nullptr);
+		glEnable(GL_DEPTH_TEST);
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glEnable(GL_DEPTH_TEST);
+
+	}
+}
+void FCameraProxy::AdjustGBuffer()
+{
+	//if(bDeferredPipeline)
+	{
+		FFrameBufferRef useFrameBuffer = frameBufferRef ? frameBufferRef : FFrameBuffer::GetDefaultFrameBuffer();
+		bool bViewportSet = false;
+		glm::vec2 viewportSize;
+		if (!useFrameBuffer->IsEmpty())
+		{
+			if (useFrameBuffer->Color[0]->IsValid())
+			{
+				viewportSize = useFrameBuffer->Color[0]->GetSize();
+				bViewportSet = true;
+			}
+			else if (useFrameBuffer->Depth->IsValid())
+			{
+				viewportSize = useFrameBuffer->Depth->GetSize();
+				bViewportSet = true;
+			}
+		}
+		if (!bViewportSet)
+		{
+			int x, y;
+			glfwGetFramebufferSize(glfwGetCurrentContext(), &x, &y);
+			viewportSize.x = x;
+			viewportSize.y = y;
+		}
+		if (bDeferredPipeline)
+		{
+			if (!gBufferRef || gBufferRef->Color[0]->GetSize() != viewportSize)
+			{
+				gBufferRef = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 4, EFrameBufferColorFormat::FCF_RGBA16F);
+				gFlipBufferRefs[0] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+				//gFlipBufferRefs[1] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+			}
+		}
+		else
+		{
+			if (!gFlipBufferRefs[0] || gFlipBufferRefs[0]->Color[0]->GetSize() != viewportSize)
+			{
+				gFlipBufferRefs[0] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+				//gFlipBufferRefs[1] = std::make_shared<FFrameBuffer>(static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y), 1, EFrameBufferColorFormat::FCF_RGBA);
+			}
+		}
+
+	}
+	//else
+	//{
+	//    gBufferRef = nullptr;
+	//}
+}

@@ -667,3 +667,22 @@ public:
 
 using FSceneRef = std::shared_ptr<FScene>;
 
+class FSceneProxy {
+public:
+	glm::mat4 Transform;
+	std::weak_ptr<class FScene> scene;
+	BVHBound BoundCache;
+	FSceneProxy(const FSceneComponent* inComponent) :Transform(inComponent->GetWorldTransform()), scene(inComponent->scene), BoundCache(inComponent->BoundCache) {};
+
+	glm::mat4 GetWorldTransform() const;
+
+	glm::vec3 GetWorldLocation() const
+	{
+		return GetWorldTransform()[3];
+	}
+
+	glm::vec3 GetFowardInWorldSpace() const
+	{
+		return normalize((GetWorldTransform() * glm::vec4(0, 0, -1, 0)));
+	}
+};

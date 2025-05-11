@@ -24,6 +24,7 @@ public:
     class FDeferredDrawer
     {
         friend class FCameraComponent;
+        friend class FCameraProxy;
         std::queue<std::function<void()>> preDeferredCommands;
         std::queue<std::function<void()>> deferredCommands;
         std::set<const FCameraComponent*> registeredCamera;
@@ -110,3 +111,69 @@ public:
 
 
 using FCameraRef = std::shared_ptr<FCameraComponent>;
+
+class FCameraProxy :FSceneProxy {
+    static std::shared_ptr<FShader> FinalShader;
+    static std::shared_ptr<class FPrimitive> FinalPrimitive;
+
+    std::set<std::shared_ptr<class FPrimitiveComponent>> ignorePrimitives;
+    std::set<std::shared_ptr<class FPrimitiveComponent>> renderOnlyPrimitives;
+    FCubeTextureRef TextureEnv;
+    FFrameBufferRef frameBufferRef;
+    FFrameBufferRef gBufferRef;
+    FFrameBufferRef gFlipBufferRefs[1];
+
+    bool bDeferredPipeline = true;
+
+
+    bool bDrawEveryFrame = true;
+
+    float nearPlane = .1f;
+    float farPlane = 100.f;
+    float aspectRatio = 1.33f;
+
+    float Zoom = 90;
+public:
+    FCameraProxy(const FCameraComponent* InComponent) :FSceneProxy(InComponent),
+        ignorePrimitives(InComponent->ignorePrimitives),
+        renderOnlyPrimitives(InComponent->renderOnlyPrimitives),
+        TextureEnv(InComponent->TextureEnv),
+        frameBufferRef(InComponent->frameBufferRef),
+        gBufferRef(InComponent->gBufferRef),
+        bDeferredPipeline(InComponent->bDeferredPipeline),
+        bDrawEveryFrame(InComponent->bDrawEveryFrame),
+        nearPlane(InComponent->nearPlane),
+        farPlane(InComponent->farPlane),
+        aspectRatio(InComponent->aspectRatio),
+        Zoom(InComponent->Zoom)
+
+    {
+        gFlipBufferRefs[0] = InComponent->gFlipBufferRefs[0];
+    };
+
+
+
+    glm::mat4 GetViewMatrix() const
+    {
+        return glm::inverse(GetWorldTransform());
+    }
+
+    glm::mat4 GetProjectionMatrix() const
+    {
+        return glm::perspective(glm::radians(Zoom), aspectRatio, nearPlane, farPlane);
+    }
+
+
+
+    FView GetView() const
+    {
+        FView ret;
+        ret.view = GetViewMatrix();
+        ret.project = GetProjectionMatrix();
+        return ret;
+    }
+
+
+    void Draw() const;
+    void AdjustGBuffer();
+};

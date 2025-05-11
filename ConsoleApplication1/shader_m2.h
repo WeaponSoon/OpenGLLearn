@@ -331,6 +331,7 @@ class FShader
     };
 
     friend class FCameraComponent;
+    friend class FCameraProxy;
     friend class FRenderBatch;
 
     struct TextureMark

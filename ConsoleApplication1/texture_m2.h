@@ -369,6 +369,7 @@ private:
     const static std::shared_ptr<FFrameBuffer>& GetDefaultFrameBuffer();
 
     friend class FCameraComponent;
+    friend class FCameraProxy;
 
     GLuint FBO;
 

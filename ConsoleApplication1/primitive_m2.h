@@ -2,7 +2,6 @@
 #include "scene_m2.h"
 #include "shader_m2.h"
 #include "camera_m2.h"
-
 struct FPrimitiveVertexPropDesc
 {
     int index;
@@ -178,9 +177,10 @@ struct FPrimitiveUnit
 
 class FPrimitiveComponent : public FSceneComponent
 {
+
     std::vector<FPrimitiveUnit> primitives;
 public:
-
+    friend class FPrimitiveProxy;
     virtual void OnUpdateBoundCache() override
     {
         if(!primitives.empty())
@@ -258,4 +258,29 @@ public:
             outRenderBatch.push_back(render_batch);
         }
     }
+};
+
+class FPrimitiveProxy :FSceneProxy {
+
+    std::vector<FPrimitiveUnit> primitives;
+
+
+public:
+    FPrimitiveProxy(const FPrimitiveComponent* InComponent) :FSceneProxy(InComponent), primitives(InComponent->primitives) {};
+
+    virtual ~FPrimitiveProxy();
+
+    virtual size_t GetPrimitiveCount() const;
+
+    virtual FPrimitiveRef GetPrimitive(int id) const;
+
+    virtual FShaderRef GetShader(int id) const;
+
+
+    virtual void SetShader(int id, FShaderRef inShader);
+
+
+
+    virtual void GenerateRenderBatch(std::vector<FRenderBatch>& outRenderBatch) const;
+
 };

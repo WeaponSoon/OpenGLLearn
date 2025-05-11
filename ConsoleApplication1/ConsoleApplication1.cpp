@@ -12,7 +12,6 @@
 #include "primitive_move_m2.h"
 #include "mode_m2l.h"
 #include "light_m2.h"
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);

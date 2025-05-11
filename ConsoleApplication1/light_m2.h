@@ -97,7 +97,7 @@ class FDirectionalLightComponent : public FLightComponent
 		return baseShadowMapSize * numOfCSM;
 	}
 public:
-
+	friend class FDirectionalLightProxy;
 	static std::shared_ptr<FShader> DirectionalLightDeferredShader;
 	static std::shared_ptr<FPrimitive> DirectionalLightDeferredGeo;
 
@@ -159,6 +159,124 @@ public:
 	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
 	{
 		outElement.emplace_back(ELightType::LT_Point, lightColor, pointLightParam, GetWorldLocation(), radius, nullptr, 100.f,1);
+	}
+
+};
+
+class FLightProxy : public FSceneProxy
+{
+public:
+
+	glm::vec3 lightColor;
+
+	FLightProxy(const FLightComponent* InComponent) :FSceneProxy(InComponent),lightColor(InComponent->lightColor)
+	{
+
+	}
+
+	void Init(glm::vec3 inLightColor)
+	{
+		lightColor = inLightColor;
+	}
+
+	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement)
+	{
+
+	}
+};
+class FEnvLightProxy : public FLightProxy
+{
+public:
+	std::shared_ptr<FShader> EnvLightDeferredShader;
+	std::shared_ptr<FPrimitive> EnvLightDeferredGeo;
+	FCubeTextureRef originEnvLight;
+	FCubeTextureRef cookedEnvLight;
+	FCubeTextureRef cookedSpecPrefilterLight;
+	FTextureRef cookedSpecBrdfLight;
+	FEnvLightProxy(const FEnvLightComponent* InComponent) :FLightProxy(InComponent),
+		EnvLightDeferredShader(InComponent->EnvLightDeferredShader),
+		EnvLightDeferredGeo(InComponent->EnvLightDeferredGeo),
+		originEnvLight(InComponent->originEnvLight),
+		cookedEnvLight(InComponent->cookedEnvLight),
+		cookedSpecPrefilterLight(InComponent->cookedSpecPrefilterLight),
+		cookedSpecBrdfLight(InComponent->cookedSpecBrdfLight)
+	{};
+
+
+
+	void CookEnvLight();
+
+	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
+	{
+		outElement.emplace_back(ELightType::LT_Env, lightColor, GetFowardInWorldSpace(), GetWorldLocation(), 0.0f, nullptr, 100.0f, 1, cookedEnvLight, cookedSpecPrefilterLight);
+	}
+};
+class FDirectionalLightProxy : public FLightProxy
+{
+
+	int GetShadowMapWidth() const
+	{
+		return baseShadowMapSize * numOfCSM;
+	}
+public:
+
+	int baseShadowMapSize;
+	int numOfCSM;
+	float lightmapDistance;
+	std::shared_ptr<FFrameBuffer> shadowMap;
+	std::shared_ptr<FShader> DirectionalLightDeferredShader;
+	std::shared_ptr<FPrimitive> DirectionalLightDeferredGeo;
+
+	void SetLightmapDistance(float inDistance)
+	{
+		lightmapDistance = inDistance;
+	}
+
+	void SetShadowMapSize(int inBaseShadowMapSize, int inNumOfCSM = -1)
+	{
+		const int needNumOfCSM = inNumOfCSM <= 0 ? numOfCSM : inNumOfCSM;
+		const int needBaseShadowMapSize = inBaseShadowMapSize <= 0 ? baseShadowMapSize : inBaseShadowMapSize;
+		if (needBaseShadowMapSize != baseShadowMapSize || needNumOfCSM != numOfCSM)
+		{
+			baseShadowMapSize = needBaseShadowMapSize;
+			numOfCSM = needNumOfCSM;
+			shadowMap = std::make_shared<FFrameBuffer>(baseShadowMapSize, GetShadowMapWidth(), 0, EFrameBufferColorFormat::FCF_RGBA);
+		}
+	}
+
+	FDirectionalLightProxy(const FDirectionalLightComponent* InComponent) : FLightProxy(InComponent),baseShadowMapSize(InComponent->baseShadowMapSize), numOfCSM(InComponent->numOfCSM), lightmapDistance(InComponent->lightmapDistance)
+		, shadowMap(InComponent->shadowMap)
+	{
+
+	}
+
+
+	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
+	{
+		outElement.emplace_back(ELightType::LT_Directional, lightColor, GetFowardInWorldSpace(), GetWorldLocation(), 0.0f, shadowMap, lightmapDistance, numOfCSM);
+	}
+};
+class FPointLightLightProxy : public FLightProxy
+{
+public:
+
+	std::shared_ptr<FShader> PointLightDeferredShader;
+	std::shared_ptr<FPrimitive> PointLightDeferredGeo;
+
+	glm::vec3 pointLightParam;
+
+	float radius = 0;
+
+	FPointLightLightProxy(const FPointLightComponent* InComponent) : FLightProxy(InComponent), PointLightDeferredShader(InComponent->PointLightDeferredShader), pointLightParam(InComponent->pointLightParam), radius(InComponent->radius)
+		
+	{
+
+	}
+
+
+	virtual void GetLightRenderBatch(std::vector<FLightRenderBatch>& outElement) override
+	{
+		outElement.emplace_back(ELightType::LT_Point, lightColor, pointLightParam, GetWorldLocation(), radius, nullptr, 100.f, 1);
 	}
 
 };
